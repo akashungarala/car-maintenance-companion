@@ -23,10 +23,12 @@ jobs:
     name: Backend (lint · types · tests)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # setup-uv publishes no bare major tag past v7.6, so this pins a full
+        # version; Dependabot keeps it current.
+        uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
 
@@ -46,7 +48,7 @@ jobs:
 
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: backend-coverage
           path: coverage.xml
@@ -56,13 +58,12 @@ jobs:
     name: Frontend (lint · types · tests)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 12.3.4
+      # Version is read from package.json's `packageManager` field — single source of truth.
+      - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -83,17 +84,19 @@ jobs:
     name: Security (secrets · dependencies)
     runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # gitleaks scans full history
 
       - name: Scan for committed secrets
-        uses: gitleaks/gitleaks-action@v2
+        uses: gitleaks/gitleaks-action@v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install uv
-        uses: astral-sh/setup-uv@v5
+        # setup-uv publishes no bare major tag past v7.6, so this pins a full
+        # version; Dependabot keeps it current.
+        uses: astral-sh/setup-uv@v10.0.1
 
       - name: Audit Python dependencies
         run: uvx pip-audit --strict --progress-spinner=off || exit 1
