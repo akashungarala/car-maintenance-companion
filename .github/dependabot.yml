@@ -20,6 +20,5 @@ updates:
       python-minor-patch:
         update-types: [minor, patch]
 
-  - package-ecosystem: docker
-    directories: ['/apps/api', '/apps/web']
-    schedule: { interval: weekly }
+  # Docker is added back in F2/F3, once Dockerfiles exist. Declaring it against
+  # non-existent paths makes Dependabot fail on every run.
