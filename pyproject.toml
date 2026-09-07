@@ -1,0 +1,78 @@
+# Root of the uv workspace. Individual Python services live in apps/*.
+# Tooling config (ruff, mypy, pytest, coverage) is centralised here so every
+# service is linted and type-checked to the same standard.
+
+[tool.uv.workspace]
+members = ["apps/api"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["apps/api/src"]
+
+[tool.ruff.lint]
+select = [
+    "E",    # pycodestyle errors
+    "W",    # pycodestyle warnings
+    "F",    # pyflakes
+    "I",    # isort
+    "B",    # flake8-bugbear
+    "C4",   # flake8-comprehensions
+    "UP",   # pyupgrade
+    "ASYNC",# flake8-async
+    "S",    # flake8-bandit (security)
+    "T20",  # flake8-print — no stray print(), use structlog
+    "RUF",
+]
+ignore = [
+    "S101",  # assert is expected in tests
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/tests/**" = ["S105", "S106"]  # hardcoded test credentials are fine
+
+[tool.mypy]
+python_version = "3.13"
+strict = true
+warn_unreachable = true
+show_error_codes = true
+pretty = true
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+
+[tool.pytest.ini_options]
+testpaths = ["apps/api/tests"]
+asyncio_mode = "auto"
+addopts = "-q --strict-markers --strict-config"
+markers = [
+    "integration: requires a real Postgres/Redis container",
+]
+
+[tool.coverage.run]
+source = ["apps/api/src/app"]
+branch = true
+omit = ["*/__main__.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_covered = true
+# Phase 0 gate. Ratchets upward — never downward. See docs/engineering/testing.md
+fail_under = 85
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "raise NotImplementedError",
+]
+
+# Dev tooling for the whole workspace. Services declare only their runtime deps.
+[dependency-groups]
+dev = [
+    "pytest>=8.3",
+    "pytest-asyncio>=0.25",
+    "pytest-cov>=6.0",
+    "mypy>=1.14",
+    "ruff>=0.9",
+    "pre-commit>=4.0",
+]

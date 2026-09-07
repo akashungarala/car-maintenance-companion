@@ -1,0 +1,10 @@
+{
+  "name": "@cmc/web",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "lint": "echo 'no frontend yet — added in F3' && exit 0",
+    "typecheck": "echo 'no frontend yet — added in F3' && exit 0",
+    "test": "echo 'no frontend yet — added in F3' && exit 0"
+  }
+}

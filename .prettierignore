@@ -1,0 +1,5 @@
+pnpm-lock.yaml
+.next/
+dist/
+coverage/
+packages/api-types/src/generated.ts
