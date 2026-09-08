@@ -38,3 +38,14 @@ def test_production_defaults_to_json_logs(monkeypatch: pytest.MonkeyPatch) -> No
     monkeypatch.setenv("CMC_ENVIRONMENT", "prod")
 
     assert Settings().log_format == "json"
+
+
+def test_root_path_is_empty_by_default() -> None:
+    """Local and test runs reach the app directly, with no proxy prefix."""
+    assert Settings().root_path == ""
+
+
+def test_root_path_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CMC_ROOT_PATH", "/apps/car-maintenance-companion/api")
+
+    assert Settings().root_path == "/apps/car-maintenance-companion/api"

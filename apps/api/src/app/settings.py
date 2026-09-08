@@ -36,6 +36,16 @@ class Settings(BaseSettings):
     # open until the kubelet's own timeout fires.
     readiness_timeout_seconds: float = 2.0
 
+    # Path prefix this service is served under when behind a proxy that strips
+    # it — in production, akashungarala.com/apps/car-maintenance-companion/api.
+    # FastAPI needs it to generate correct URLs for /docs and openapi.json;
+    # without it the docs page loads and then fails to fetch its own schema.
+    #
+    # Empty locally and in tests, where the app is reached directly. Note this
+    # changes only *generated* URLs, not the routes themselves, so Kubernetes
+    # probes still hit /health and /ready on the pod unprefixed.
+    root_path: str = ""
+
     @model_validator(mode="after")
     def _json_logs_in_production(self) -> Self:
         """Default to JSON logs in production unless explicitly overridden.

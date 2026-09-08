@@ -1,6 +1,10 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const PORT = 3100;
+// Origin only. baseURL must NOT include the basePath: Playwright resolves
+// page.goto('/foo') with URL semantics, so a leading slash discards any path on
+// the base and the test silently hits the wrong URL. Specs navigate to the
+// prefix explicitly instead.
 const baseURL = `http://127.0.0.1:${PORT}`;
 
 export default defineConfig({
@@ -27,7 +31,7 @@ export default defineConfig({
       'cp -r .next/static .next/standalone/apps/web/.next/',
       `PORT=${PORT} node .next/standalone/apps/web/server.js`,
     ].join(' && '),
-    url: baseURL,
+    url: `${baseURL}/apps/car-maintenance-companion`,
     reuseExistingServer: !process.env['CI'],
     timeout: 180_000,
   },
