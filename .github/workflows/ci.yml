@@ -19,8 +19,58 @@ env:
   NODE_VERSION: '22'
 
 jobs:
+  # Detect which parts of the monorepo a PR actually touches, so a docs-only
+  # change does not spend four minutes building and scanning a Docker image.
+  # Formatting and secret scanning still run on everything.
+  changes:
+    name: Detect changes
+    runs-on: ubuntu-24.04
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      frontend: ${{ steps.filter.outputs.frontend }}
+      image: ${{ steps.filter.outputs.image }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          filters: |
+            backend:
+              - 'apps/api/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+            frontend:
+              - 'apps/web/**'
+              - 'packages/**'
+              - 'package.json'
+              - 'pnpm-lock.yaml'
+              - '.github/workflows/ci.yml'
+            image:
+              - 'apps/api/**'
+              - 'pyproject.toml'
+              - 'uv.lock'
+              - '.github/workflows/ci.yml'
+
+  # Cheap and repo-wide: formatting covers docs, YAML and JSON too, so it must
+  # not be gated on code paths.
+  format:
+    name: Format
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+      - uses: pnpm/action-setup@v6
+      - uses: actions/setup-node@v7
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run format:check
+
   backend:
     name: Backend (lint · types · tests)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -56,6 +106,8 @@ jobs:
 
   frontend:
     name: Frontend (lint · types · tests)
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v7
@@ -105,6 +157,8 @@ jobs:
     name: Image (build · scan · smoke)
     # Native arm64 to match the production cluster (ADR-0002); free and
     # unmetered on public repos, and ~5-10x faster than QEMU emulation.
+    needs: changes
+    if: needs.changes.outputs.image == 'true'
     runs-on: ubuntu-24.04-arm
     steps:
       - uses: actions/checkout@v7
@@ -152,11 +206,13 @@ jobs:
   ci-passed:
     name: CI passed
     runs-on: ubuntu-24.04
-    needs: [backend, frontend, security, image]
+    needs: [changes, format, backend, frontend, security, image]
     if: always()
     steps:
       - name: Verify all jobs succeeded
         run: |
+          # A skipped job is a legitimate outcome: path filters skip work that
+          # this PR cannot affect. Only failure and cancellation block a merge.
           if [[ "${{ contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
             echo "One or more required jobs failed."
             exit 1
