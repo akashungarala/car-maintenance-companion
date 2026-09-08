@@ -9,7 +9,17 @@ spec:
   project: default
   source:
     repoURL: https://github.com/akashungarala/car-maintenance-companion.git
-    targetRevision: main
+    # Tracks `deploy`, not `main`.
+    #
+    # `main` is fully protected and never written by a machine — no bypass
+    # actor, no deploy key, no token with elevated rights. CI instead merges
+    # main into `deploy` and commits the image tag there, so `deploy` is a
+    # literal record of what production is running, and rolling back is
+    # `git revert` on that branch.
+    #
+    # It also means merging code to main does not deploy it by itself: the
+    # deploy job does, after the images exist.
+    targetRevision: deploy
     path: infra/k8s/apps/api/overlays/prod
   destination:
     server: https://kubernetes.default.svc
