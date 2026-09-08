@@ -268,7 +268,17 @@ jobs:
   # never push, so a fork PR cannot put anything into the registry.
   publish:
     name: Publish (${{ matrix.service }})
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # `always()` is required, not cosmetic. GitHub propagates `skipped`
+    # transitively through `needs`: when a path filter skips the frontend job,
+    # ci-passed still succeeds, but every downstream job is skipped anyway
+    # unless it opts out of that inheritance. Without this, a backend-only
+    # change — the most common kind — silently never deploys, with a green
+    # tick on the run.
+    if: >-
+      always()
+      && needs.ci-passed.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event_name == 'push'
     needs: [ci-passed]
     runs-on: ubuntu-24.04-arm
     permissions:
@@ -321,7 +331,13 @@ jobs:
   # carries a readable history of exactly what production ran.
   deploy:
     name: Deploy
-    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    # Same reasoning as publish: explicit result check rather than relying on
+    # implicit needs semantics, which treat an upstream skip as disqualifying.
+    if: >-
+      always()
+      && needs.publish.result == 'success'
+      && github.ref == 'refs/heads/main'
+      && github.event_name == 'push'
     needs: [publish]
     runs-on: ubuntu-24.04
     permissions:
