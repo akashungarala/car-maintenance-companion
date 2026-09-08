@@ -8,7 +8,7 @@ from app.database import Database
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
 from app.settings import Settings
-from app.telemetry import configure_tracing, instrument
+from app.telemetry import configure_metrics, configure_tracing, instrument
 
 logger = structlog.get_logger()
 
@@ -24,6 +24,10 @@ def create_app(
     )
     configure_logging(settings)
     configure_tracing(settings)
+    # Without a meter provider the FastAPI instrumentation records no metrics
+    # at all: there is no RED data, and the service-health dashboard and the
+    # error-rate and latency alerts have nothing to read.
+    configure_metrics(settings)
 
     app = FastAPI(
         title="Car Maintenance Companion API",
