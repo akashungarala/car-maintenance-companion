@@ -52,6 +52,22 @@ class Settings(BaseSettings):
     database_url: str | None = None
 
     @model_validator(mode="after")
+    def _normalise_database_driver(self) -> Self:
+        """Accept CloudNativePG's plain postgresql:// URI.
+
+        The operator generates the connection secret itself, so taking its
+        format verbatim avoids rewriting it in YAML. A bare postgresql:// URL
+        selects SQLAlchemy's sync driver, which is not installed — that would
+        fail at first connection rather than at startup, which is a much worse
+        place to find out.
+        """
+        if self.database_url and self.database_url.startswith("postgresql://"):
+            self.database_url = self.database_url.replace(
+                "postgresql://", "postgresql+asyncpg://", 1
+            )
+        return self
+
+    @model_validator(mode="after")
     def _json_logs_in_production(self) -> Self:
         """Default to JSON logs in production unless explicitly overridden.
 

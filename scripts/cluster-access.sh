@@ -21,8 +21,15 @@ LOCAL_PORT="${CMC_K8S_PORT:-6443}"
 
 IP="$(cd "$TOFU_DIR" && tofu output -raw public_ip)"
 
-# Reuse an existing tunnel rather than stacking them up.
-if ! nc -z 127.0.0.1 "$LOCAL_PORT" 2>/dev/null; then
+# Reuse an existing tunnel, but only if it actually works. A port can stay bound
+# by a dead forwarder — after a laptop sleeps, say — and a liveness check based
+# on binding alone happily reuses a tunnel that refuses every connection.
+tunnel_alive() {
+  curl -sk --max-time 5 "https://127.0.0.1:${LOCAL_PORT}/version" >/dev/null 2>&1
+}
+
+if ! tunnel_alive; then
+  pkill -f "${LOCAL_PORT}:127.0.0.1:6443" 2>/dev/null || true
   ssh -i "$KEY" -o StrictHostKeyChecking=accept-new -o ExitOnForwardFailure=yes \
     -f -N -L "${LOCAL_PORT}:127.0.0.1:6443" "ubuntu@${IP}"
   echo "# tunnel opened to ${IP}:6443 on localhost:${LOCAL_PORT}" >&2

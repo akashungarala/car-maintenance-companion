@@ -5,4 +5,6 @@ namespace: argocd
 
 resources:
   - sealed-secrets.yaml
+  - cloudnative-pg.yaml
+  - database.yaml
   - api.yaml
