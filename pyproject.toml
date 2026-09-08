@@ -75,4 +75,5 @@ dev = [
     "mypy>=1.14",
     "ruff>=0.9",
     "pre-commit>=4.0",
+    "httpx>=0.28",
 ]

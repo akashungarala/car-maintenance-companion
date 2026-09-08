@@ -101,13 +101,58 @@ jobs:
       - name: Audit Python dependencies
         run: uvx pip-audit --strict --progress-spinner=off || exit 1
 
+  image:
+    name: Image (build · scan · smoke)
+    # Native arm64 to match the production cluster (ADR-0002); free and
+    # unmetered on public repos, and ~5-10x faster than QEMU emulation.
+    runs-on: ubuntu-24.04-arm
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Build image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          platforms: linux/arm64
+          tags: cmc-api:${{ github.sha }}
+          load: true
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Scan image for vulnerabilities
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: cmc-api:${{ github.sha }}
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Smoke test the container
+        run: |
+          docker run -d --name api -p 8000:8000 cmc-api:${{ github.sha }}
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+            sleep 1
+          done
+          echo "--- /health ---"
+          curl -fsS http://localhost:8000/health | tee /tmp/health.json
+          grep -q '"status":"ok"' /tmp/health.json
+          echo "--- /ready ---"
+          curl -fsS http://localhost:8000/ready | grep -q '"status":"ready"'
+          echo "--- must run as non-root ---"
+          test "$(docker exec api id -u)" = "10001"
+          docker rm -f api
+
   # Aggregate gate — this is the single required status check on main.
   # Adding a new job above means adding it to `needs` here, so nothing
   # can silently become non-blocking.
   ci-passed:
     name: CI passed
     runs-on: ubuntu-24.04
-    needs: [backend, frontend, security]
+    needs: [backend, frontend, security, image]
     if: always()
     steps:
       - name: Verify all jobs succeeded

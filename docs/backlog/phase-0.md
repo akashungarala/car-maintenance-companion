@@ -17,8 +17,8 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | ID     | Slice                                                                                    | Depends on | Status |
 | ------ | ---------------------------------------------------------------------------------------- | ---------- | ------ |
 | **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done   |
-| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Next   |
-| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Todo   |
+| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done   |
+| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Next   |
 | **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Todo   |
 | **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Todo   |
 | **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo   |
@@ -80,6 +80,34 @@ status, duration_ms`
 - [ ] A redaction filter drops `authorization` headers, tokens and full email addresses
 - [ ] Image builds for `linux/arm64`, runs as non-root, and passes a Trivy scan with no HIGH/CRITICAL
 - [ ] Coverage ≥ 85%
+
+**Delivered**
+
+- FastAPI application factory with typed settings (`pydantic-settings`, `CMC_` prefix)
+- `GET /health` — liveness, provably dependency-free
+- `GET /ready` — readiness registry running checks concurrently under a timeout,
+  returning 503 with per-dependency detail. Empty in F2; F6 registers Postgres and
+  F7 registers Redis
+- `structlog` JSON logging, with stdlib records (uvicorn) routed through the same
+  renderer so no plain-text line reaches the log pipeline
+- Redaction processor dropping authorization/token/secret keys and masking emails
+- Request-id middleware binding correlation into log context and echoing
+  `X-Request-ID`; route logged as a **template**, never a raw path
+- Multi-stage arm64 Dockerfile, non-root uid 10001, 54 MB; `compose.yaml`
+- CI `image` job on a native arm64 runner: build, Trivy scan, container smoke test
+
+**Acceptance**
+
+- [x] `/health` returns 200 and never touches Postgres or Redis — asserted by a test
+      that registers a spy check and proves it is not called
+- [x] `/ready` reports per-dependency status and returns 503 when any is unavailable,
+      including when a check raises or hangs
+- [x] Every log line is JSON carrying the required correlation fields
+- [x] Redaction verified for authorization headers, token/secret keys and emails
+- [x] Image builds for `linux/arm64`, runs as non-root, Trivy gate in CI
+- [x] Coverage 100% (gate 85%)
+
+---
 
 ## F3 — Frontend skeleton
 

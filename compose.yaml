@@ -1,0 +1,29 @@
+# Local development stack.
+#
+# Postgres and Redis are added in F6/F7. Until then this exists so that
+# `docker compose up` is the single documented way to run the service the same
+# way production does — same image, same entrypoint, same non-root user.
+
+services:
+  api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    ports:
+      - '8000:8000'
+    environment:
+      CMC_ENVIRONMENT: local
+      CMC_LOG_FORMAT: console
+      CMC_LOG_LEVEL: DEBUG
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'python',
+          '-c',
+          "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2).status == 200 else 1)",
+        ]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+      start_period: 5s

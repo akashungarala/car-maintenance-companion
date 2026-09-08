@@ -1,0 +1,25 @@
+# Keep the build context small and, more importantly, keep secrets and local
+# state out of it entirely.
+.git
+.github
+.venv
+node_modules
+**/node_modules
+**/.next
+**/__pycache__
+**/.pytest_cache
+**/.mypy_cache
+**/.ruff_cache
+docs
+infra
+scripts
+coverage.xml
+.coverage
+htmlcov
+**/test-results
+**/playwright-report
+.env
+.env.*
+*.pem
+*.key
+kubeconfig*
