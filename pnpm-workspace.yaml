@@ -1,3 +1,11 @@
 packages:
   - 'apps/web'
   - 'packages/*'
+
+# pnpm blocks dependency lifecycle scripts by default. Each package is
+# allowlisted explicitly rather than disabling the protection wholesale.
+#   msw           — writes the service worker used for API mocking
+#   unrs-resolver — native binary for the ESLint import resolver
+allowBuilds:
+  msw: true
+  unrs-resolver: true

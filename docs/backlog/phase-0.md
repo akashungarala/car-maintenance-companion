@@ -18,7 +18,7 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | ------ | ---------------------------------------------------------------------------------------- | ---------- | --------- |
 | **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done      |
 | **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done      |
-| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Next      |
+| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Code done |
 | **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Code done |
 | **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Todo      |
 | **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo      |
@@ -121,6 +121,38 @@ a production Dockerfile and a `web` Kustomize overlay scaled to zero (the ADR-00
 - [ ] Vitest and Playwright both run in CI; coverage ≥ 80%
 - [ ] Deployed and publicly reachable; PR preview deploys work
 - [ ] Security headers set (CSP, HSTS, `X-Content-Type-Options`, `Referrer-Policy`)
+
+**Delivered (code)**
+
+- Next.js 16 App Router, TypeScript strict (plus `noUncheckedIndexedAccess`,
+  `exactOptionalPropertyTypes`), Tailwind 4
+- Six Vitest + React Testing Library tests at 100% coverage (gate 80%), querying by accessible role
+- MSW wired with `onUnhandledRequest: 'error'`, so a stray real network call in a test fails loudly
+- Four Playwright tests against the **standalone production build**, asserting the rendered page,
+  the security headers, the absence of `X-Powered-By`, and a 404 route
+- Six security headers including a deliberately strict CSP — easier to start strict than to tighten
+  later once third-party scripts exist
+- Multi-stage arm64 Dockerfile, non-root uid 10001, 88 MB (the ADR-0007 escape hatch, built and
+  smoke-tested in CI so it cannot rot while unused)
+- CI: `image` job is now a matrix over `api` and `web`; frontend job builds and runs E2E
+
+**Two dependencies deliberately pinned below latest** — TypeScript 6 (typescript-eslint has no TS 7
+support) and ESLint 9 (`eslint-plugin-react` crashes on ESLint 10). Rationale recorded in
+[`apps/web/README.md`](../../apps/web/README.md) so the bumps get rejected rather than re-attempted.
+
+**Deferred by design:** the `web` Kustomize overlay moves to F5, which creates the Kustomize base —
+an overlay with no base would be fiction. shadcn/ui is deferred to the first real component (E2)
+rather than scaffolding unused code now.
+
+**Blocked on the Vercel project.** Connect the repository at vercel.com with Root Directory
+`apps/web` to get production and preview deploys.
+
+**Remaining acceptance**
+
+- [ ] Deployed and publicly reachable
+- [ ] PR preview deploys work
+
+---
 
 ## F4 — Infrastructure as code
 
