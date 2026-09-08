@@ -1,0 +1,20 @@
+# Extends gitleaks' default rules; this file only adds an allowlist.
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = """
+SealedSecret ciphertext.
+
+Sealed Secrets encrypts values with a key that only the cluster holds, and the
+encrypted form is designed to be committed — that property is what makes GitOps
+workable on a public repository (ADR-0001, ADR-0008). The ciphertext is
+high-entropy base64 sitting next to key-like names, so the generic-api-key rule
+matches it every time.
+
+Scoped to files named sealed-*.yaml under infra/k8s so that a genuine secret
+committed anywhere else is still caught. Verified before adding: the flagged
+value is an AgB… envelope, and neither the plaintext access key nor the secret
+appears in the file.
+"""
+paths = ['''infra/k8s/.*/sealed-.*\.yaml''']
