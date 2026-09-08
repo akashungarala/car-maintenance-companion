@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: kube-system
+
+resources:
+  # Pinned, like every remote base here: an unpinned controller can change the
+  # cluster underneath an unrelated sync.
+  - https://github.com/bitnami-labs/sealed-secrets/releases/download/v0.39.1/controller.yaml

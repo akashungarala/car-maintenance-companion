@@ -1,0 +1,39 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: argocd
+
+resources:
+  - namespace.yaml
+  # Pinned. An unpinned remote base means the cluster's control plane can change
+  # underneath you on an unrelated apply.
+  - https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.2/manifests/install.yaml
+  - root-application.yaml
+
+patches:
+  # This node has 2 CPUs. These three components are scaled to zero because
+  # nothing here uses them, not because they are unwanted:
+  #   dex          — SSO against an external IdP; there is one local admin
+  #   applicationset — generated Applications; ours are written by hand
+  #   notifications  — alerting goes through Grafana in F8, not Argo
+  - target:
+      kind: Deployment
+      name: argocd-dex-server
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  - target:
+      kind: Deployment
+      name: argocd-applicationset-controller
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 0
+  - target:
+      kind: Deployment
+      name: argocd-notifications-controller
+    patch: |
+      - op: replace
+        path: /spec/replicas
+        value: 0
