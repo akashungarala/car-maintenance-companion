@@ -312,6 +312,60 @@ jobs:
           provenance: true
           sbom: true
 
+  # Promotes main to the `deploy` branch that Argo CD watches, pinning the image
+  # tag to this commit's SHA. This is the deployment: Argo reconciles the branch.
+  #
+  # It writes to `deploy` rather than `main` on purpose. `main` requires a
+  # passing CI check and has no bypass actor, so nothing automated can push to
+  # it — which is the property worth keeping. `deploy` is machine-owned and
+  # carries a readable history of exactly what production ran.
+  deploy:
+    name: Deploy
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [publish]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - name: Promote main to deploy with this SHA pinned
+        env:
+          SHA: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if git ls-remote --exit-code --heads origin deploy >/dev/null 2>&1; then
+            git checkout -B deploy origin/deploy
+            # Bring in main's code. -X theirs: main is authoritative for
+            # everything except the tag line this job owns.
+            git merge --no-edit -X theirs "$SHA" || {
+              echo "::error::could not merge main into deploy"; exit 1;
+            }
+          else
+            echo "deploy branch does not exist yet; creating it from main"
+            git checkout -B deploy "$SHA"
+          fi
+
+          overlay=infra/k8s/apps/api/overlays/prod/kustomization.yaml
+          sed -i "s|^    newTag: .*|    newTag: $SHA|" "$overlay"
+          grep -q "newTag: $SHA" "$overlay" || {
+            echo "::error::tag substitution did not apply"; exit 1;
+          }
+
+          if git diff --quiet; then
+            echo "already deployed at $SHA; nothing to do"
+            exit 0
+          fi
+
+          git add "$overlay"
+          git commit -m "deploy: api ${SHA}"
+          git push origin deploy
+
   # Aggregate gate — this is the single required status check on main.
   # Adding a new job above means adding it to `needs` here, so nothing
   # can silently become non-blocking.

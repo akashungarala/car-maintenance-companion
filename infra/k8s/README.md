@@ -18,6 +18,24 @@ arrives through git.
 
 See [`bootstrap/README.md`](bootstrap/README.md).
 
+## Branches
+
+| Branch   | Written by          | Meaning                             |
+| -------- | ------------------- | ----------------------------------- |
+| `main`   | humans, through PRs | the source of truth for code        |
+| `deploy` | CI only             | what production is actually running |
+
+Argo CD watches `deploy` for the application. CI merges `main` into it and pins the image tag to the
+commit's SHA, so the branch is a literal, readable history of every deployment.
+
+`main` is fully protected with no bypass actor — nothing automated can push to it, and that property
+is worth more than the convenience of committing the tag there. GitHub only allows a GitHub Actions
+bypass on organisation-owned repositories, so on a personal repo the alternatives were a deploy key
+or a personal access token with elevated rights. A machine-owned branch needs neither.
+
+**Rolling back is `git revert` on `deploy`.** No kubectl, no registry surgery, and the revert itself
+is the audit record.
+
 ## The rule this directory exists to enforce
 
 No human runs `kubectl apply` to deploy. CI builds an image, pushes it, and commits a tag bump;
