@@ -16,3 +16,6 @@ spec:
                   key: uri
             - name: CMC_REDIS_URL
               value: redis://redis.cmc.svc.cluster.local:6379/0
+            # The local collector, never a vendor URL (ADR-0004).
+            - name: CMC_OTLP_ENDPOINT
+              value: http://otel-collector.cmc.svc.cluster.local:4318

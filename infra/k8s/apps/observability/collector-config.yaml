@@ -1,0 +1,67 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 0.0.0.0:4318
+      grpc:
+        endpoint: 0.0.0.0:4317
+
+processors:
+  # First in the pipeline on purpose: under memory pressure the collector
+  # must shed load rather than be OOM-killed, because a killed collector
+  # loses everything already buffered.
+  memory_limiter:
+    check_interval: 1s
+    limit_mib: 160
+    spike_limit_mib: 40
+
+  batch:
+    timeout: 5s
+    send_batch_size: 512
+    send_batch_max_size: 1024
+
+  # Identifies which cluster sent this, which matters the moment there is
+  # more than one environment.
+  resource:
+    attributes:
+      - key: deployment.environment
+        value: prod
+        action: upsert
+      - key: k8s.cluster.name
+        value: cmc-k3s
+        action: upsert
+
+exporters:
+  otlphttp/grafana:
+    endpoint: ${env:GRAFANA_OTLP_ENDPOINT}
+    headers:
+      authorization: ${env:GRAFANA_OTLP_AUTHORIZATION}
+    # Retry and queue on disk-less memory: a brief Grafana outage should not
+    # discard telemetry, but the queue is bounded so it cannot become the
+    # memory problem it is meant to survive.
+    retry_on_failure:
+      enabled: true
+      initial_interval: 5s
+      max_interval: 30s
+      max_elapsed_time: 300s
+    sending_queue:
+      enabled: true
+      queue_size: 1000
+
+service:
+  telemetry:
+    logs:
+      level: info
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp/grafana]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp/grafana]
+    logs:
+      receivers: [otlp]
+      processors: [memory_limiter, resource, batch]
+      exporters: [otlphttp/grafana]

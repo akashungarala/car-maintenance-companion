@@ -1,0 +1,79 @@
+# The OpenTelemetry Collector: the single egress point for telemetry, and the
+# only component in the system that knows Grafana Cloud exists (ADR-0004).
+#
+# Everything upstream speaks plain OTLP. Swapping to self-hosted Loki, Tempo and
+# Mimir means editing the exporter in collector-config.yaml and nothing else.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: otel-collector
+  labels:
+    app.kubernetes.io/name: otel-collector
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-collector
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-collector
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: collector
+          image: otel/opentelemetry-collector-contrib:0.116.1
+          args: ['--config=/conf/config.yaml']
+          env:
+            - name: GRAFANA_OTLP_ENDPOINT
+              value: https://otlp-gateway-prod-us-east-3.grafana.net/otlp
+            - name: GRAFANA_OTLP_AUTHORIZATION
+              valueFrom:
+                secretKeyRef:
+                  name: grafana-otlp
+                  key: AUTHORIZATION
+          ports:
+            - name: otlp-http
+              containerPort: 4318
+            - name: otlp-grpc
+              containerPort: 4317
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              # Above memory_limiter's 160 MiB so the limiter sheds load before
+              # the kernel kills the process.
+              memory: 224Mi
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+      volumes:
+        - name: config
+          configMap:
+            name: otel-collector
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: otel-collector
+spec:
+  selector:
+    app.kubernetes.io/name: otel-collector
+  ports:
+    - name: otlp-http
+      port: 4318
+      targetPort: otlp-http
+    - name: otlp-grpc
+      port: 4317
+      targetPort: otlp-grpc

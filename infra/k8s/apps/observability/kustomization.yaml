@@ -1,0 +1,18 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cmc
+
+resources:
+  - sealed-grafana-otlp.yaml
+  - collector.yaml
+
+# Generated rather than hand-written, so kustomize appends a hash of the content
+# to the name. A config change therefore produces a new ConfigMap name, which
+# rolls the Deployment. A plain ConfigMap would update in place and leave the
+# running pod serving the old configuration — a change that appears to do
+# nothing at all.
+configMapGenerator:
+  - name: otel-collector
+    files:
+      - config.yaml=collector-config.yaml
