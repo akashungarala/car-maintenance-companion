@@ -2,6 +2,9 @@
 
 ## Start here
 
+**Board:** [Car Maintenance Companion](https://github.com/users/akashungarala/projects/1) — the live status of every slice and epic.
+The markdown backlog below is the detail; the board is the state.
+
 | Document                                | What it answers                                     |
 | --------------------------------------- | --------------------------------------------------- |
 | [Architecture Decision Records](adr/)   | Why is anything the way it is?                      |

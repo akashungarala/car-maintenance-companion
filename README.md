@@ -72,6 +72,12 @@ The rules that actually bind:
   weeks of backend followed by weeks of frontend.
 - The "do not build yet" list is binding. Changing it requires an ADR.
 
+## Tracking
+
+Work is tracked on the [project board](https://github.com/users/akashungarala/projects/1), with `Area`, `Epic`, `Priority` and `UX Ref`
+fields. Issues are the stories; the board is the state. Roles are separated by field and by
+[CODEOWNERS](.github/CODEOWNERS) rather than by splitting the repository — see ADR-0001.
+
 ## Documentation
 
 [`docs/`](docs/README.md) — start there.
