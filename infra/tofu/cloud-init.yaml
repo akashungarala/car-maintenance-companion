@@ -4,7 +4,11 @@
 # reachable, hardened k3s node.
 
 package_update: true
-package_upgrade: true
+
+# Deliberately NOT package_upgrade: true. On OCI it triggers `snap refresh`,
+# which fails on the transient DNS unavailability common during early boot and
+# aborts the whole package module. Security patches are handled by
+# unattended-upgrades below, which retries on its own schedule.
 
 packages:
   - iptables-persistent
@@ -28,6 +32,21 @@ write_files:
 
 runcmd:
   # ---------------------------------------------------------------------
+  # Wait for working DNS before anything that needs the network. OCI
+  # instances routinely have no name resolution for the first few seconds,
+  # and every failure below is caused by not waiting for it.
+  # ---------------------------------------------------------------------
+  - |
+    for i in $(seq 1 60); do
+      if getent hosts get.k3s.io >/dev/null 2>&1; then
+        echo "DNS ready after $${i} attempt(s)"
+        break
+      fi
+      echo "waiting for DNS ($${i}/60)"
+      sleep 5
+    done
+
+  # ---------------------------------------------------------------------
   # Oracle's Ubuntu images ship an iptables ruleset whose INPUT chain ends
   # in a REJECT, so the OCI security list alone is not enough — traffic is
   # allowed to the VNIC and then dropped by the host. Rules must be
@@ -45,21 +64,47 @@ runcmd:
   - systemctl restart ssh
 
   # ---------------------------------------------------------------------
-  # k3s. Version is pinned: an unpinned installer makes the node
-  # unreproducible and can silently upgrade the control plane on rebuild.
-  # Traefik ships with k3s and is kept — it is the ingress in the plan.
+  # k3s. Downloaded to a file and checked before running, never piped
+  # straight into a shell: `curl -sfL ... | sh` silently succeeds when the
+  # download fails, because the shell simply executes an empty script. That
+  # produces a node with no Kubernetes on it and no error anywhere.
+  #
+  # Version is pinned: an unpinned installer makes the node unreproducible
+  # and can silently upgrade the control plane on rebuild. Traefik ships
+  # with k3s and is kept — it is the ingress in the plan.
   # ---------------------------------------------------------------------
   - |
-    curl -sfL https://get.k3s.io | \
-      INSTALL_K3S_VERSION="${k3s_version}" \
-      INSTALL_K3S_EXEC="server \
-        --write-kubeconfig-mode 0600 \
-        --node-name cmc-k3s \
-        --tls-san ${app_hostname} \
-        --tls-san ${api_hostname}" \
-      sh -s -
+    set -eu
+    for i in $(seq 1 5); do
+      if curl -fsSL https://get.k3s.io -o /tmp/k3s-install.sh; then
+        break
+      fi
+      echo "k3s installer download failed (attempt $${i}/5)"
+      sleep 10
+    done
 
-  - kubectl wait --for=condition=Ready node/cmc-k3s --timeout=300s || true
-  - touch /var/lib/cloud/cmc-bootstrap-complete
+    if [ ! -s /tmp/k3s-install.sh ]; then
+      echo "FATAL: could not download the k3s installer" >&2
+      exit 1
+    fi
 
-final_message: "k3s node ready after $UPTIME seconds"
+    INSTALL_K3S_VERSION="${k3s_version}" \
+    INSTALL_K3S_EXEC="server \
+      --write-kubeconfig-mode 0600 \
+      --node-name cmc-k3s \
+      --tls-san ${app_hostname} \
+      --tls-san ${api_hostname}" \
+      sh /tmp/k3s-install.sh
+
+  # Fail loudly rather than leaving a half-built node that looks fine.
+  - |
+    set -eu
+    systemctl is-active --quiet k3s || {
+      echo "FATAL: k3s did not start" >&2
+      journalctl -u k3s --no-pager -n 50 >&2
+      exit 1
+    }
+    /usr/local/bin/kubectl wait --for=condition=Ready node/cmc-k3s --timeout=300s
+    /usr/local/bin/kubectl get nodes -o wide
+    touch /var/lib/cloud/cmc-bootstrap-complete
+    echo "bootstrap complete"
