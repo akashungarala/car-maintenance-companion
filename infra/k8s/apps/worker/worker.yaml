@@ -42,6 +42,8 @@ spec:
               value: json
             - name: CMC_REDIS_URL
               value: redis://redis.cmc.svc.cluster.local:6379/0
+            - name: CMC_OTLP_ENDPOINT
+              value: http://otel-collector.cmc.svc.cluster.local:4318
             - name: CMC_DATABASE_URL
               valueFrom:
                 secretKeyRef:
@@ -108,6 +110,10 @@ spec:
                   value: json
                 - name: CMC_REDIS_URL
                   value: redis://redis.cmc.svc.cluster.local:6379/0
+                # The CronJob starts the trace that the worker's execution
+                # joins, so it needs the endpoint too.
+                - name: CMC_OTLP_ENDPOINT
+                  value: http://otel-collector.cmc.svc.cluster.local:4318
               securityContext:
                 allowPrivilegeEscalation: false
                 readOnlyRootFilesystem: true
