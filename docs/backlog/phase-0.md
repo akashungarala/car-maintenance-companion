@@ -14,17 +14,17 @@ more up front and nothing afterwards.
 
 Each slice is independently mergeable and deployable, and ends green in CI.
 
-| ID     | Slice                                                                                    | Depends on | Status |
-| ------ | ---------------------------------------------------------------------------------------- | ---------- | ------ |
-| **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done   |
-| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done   |
-| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Next   |
-| **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Todo   |
-| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Todo   |
-| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo   |
-| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo   |
-| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo   |
-| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
+| ID     | Slice                                                                                    | Depends on | Status    |
+| ------ | ---------------------------------------------------------------------------------------- | ---------- | --------- |
+| **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done      |
+| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done      |
+| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Next      |
+| **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Code done |
+| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Todo      |
+| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo      |
+| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo      |
+| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo      |
+| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo      |
 
 **Critical path:** F1 → F2 → F4 → F5 → F6 → F8 → F9
 **Parallel:** F3 alongside F2/F4 · dashboards alongside F7 · docs and ADRs throughout
@@ -134,6 +134,35 @@ the origin IP is hidden. Remote state, not local.
 - [ ] Capacity-retry documented for A1 unavailability (risk R2)
 - [ ] TLS valid; HTTP redirects to HTTPS; origin IP not publicly resolvable
 - [ ] Hetzner migration path documented and costed (ADR-0002)
+
+**Delivered (code)**
+
+- OpenTofu for the VCN, internet gateway, route table, public subnet and security list
+- Ampere A1 instance sized to the Always Free ceiling, with **variable validation** rejecting
+  configurations that would silently make it billable (>2 OCPU, >12 GB, >180 GB boot)
+- `admin_cidr` validation refusing `0.0.0.0/0` — SSH and the Kubernetes API are never
+  internet-facing
+- cloud-init installing a pinned k3s, hardening SSH, enabling unattended security upgrades, and
+  inserting iptables ACCEPT rules **ahead of** Oracle's default REJECT (the most common reason an
+  OCI instance looks unreachable on 80/443)
+- Proxied Cloudflare DNS records for the app and API hostnames
+- Remote state in Cloudflare R2; `.terraform.lock.hcl` committed for reproducible providers
+- `scripts/oci-provision-retry.sh` walking availability domains for capacity (risk R2), stopping
+  immediately on any non-capacity failure so real errors are not buried
+- CI `infra` job running `tofu fmt -check` and `tofu validate` with no cloud credentials
+
+**Blocked on credentials.** The configuration is validated against real provider schemas but has
+not been applied. Applying needs an Oracle Cloud account (tenancy/user OCID, API key fingerprint
+and key, region, compartment) and a Cloudflare API token and zone ID. See
+[`infra/tofu/README.md`](../../infra/tofu/README.md).
+
+**Remaining acceptance**
+
+- [ ] `tofu apply` from scratch produces a working cluster with no manual steps
+- [ ] TLS valid; HTTP redirects to HTTPS; origin IP not publicly resolvable
+- [ ] cert-manager issuing over DNS-01
+
+---
 
 ## F5 — GitOps delivery
 

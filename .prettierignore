@@ -3,3 +3,8 @@ pnpm-lock.yaml
 dist/
 coverage/
 packages/api-types/src/generated.ts
+
+# OpenTofu template, not a plain YAML document: it carries ${...} placeholders
+# and a block scalar whose whitespace is a shell script. `tofu fmt` and
+# `tofu validate` cover this directory instead.
+infra/tofu/cloud-init.yaml

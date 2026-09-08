@@ -29,6 +29,7 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       image: ${{ steps.filter.outputs.image }}
+      infra: ${{ steps.filter.outputs.infra }}
     steps:
       - uses: actions/checkout@v7
       - uses: dorny/paths-filter@v4
@@ -50,6 +51,9 @@ jobs:
               - 'apps/api/**'
               - 'pyproject.toml'
               - 'uv.lock'
+              - '.github/workflows/ci.yml'
+            infra:
+              - 'infra/**'
               - '.github/workflows/ci.yml'
 
   # Cheap and repo-wide: formatting covers docs, YAML and JSON too, so it must
@@ -200,13 +204,39 @@ jobs:
           test "$(docker exec api id -u)" = "10001"
           docker rm -f api
 
+  infra:
+    name: Infrastructure (fmt · validate)
+    needs: changes
+    if: needs.changes.outputs.infra == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: opentofu/setup-opentofu@v2
+        with:
+          tofu_version: 1.12.6
+
+      - name: Check formatting
+        run: tofu fmt -check -recursive -diff
+        working-directory: infra/tofu
+
+      # -backend=false: validation needs the provider schemas, not remote
+      # state, so this runs without any cloud credentials.
+      - name: Initialise providers
+        run: tofu init -backend=false -input=false
+        working-directory: infra/tofu
+
+      - name: Validate
+        run: tofu validate
+        working-directory: infra/tofu
+
   # Aggregate gate — this is the single required status check on main.
   # Adding a new job above means adding it to `needs` here, so nothing
   # can silently become non-blocking.
   ci-passed:
     name: CI passed
     runs-on: ubuntu-24.04
-    needs: [changes, format, backend, frontend, security, image]
+    needs: [changes, format, backend, frontend, security, image, infra]
     if: always()
     steps:
       - name: Verify all jobs succeeded
