@@ -43,6 +43,12 @@ own, an HSTS header here would set policy for the whole parent domain and every 
 including ones this project knows nothing about. That header belongs to the project that owns the
 domain.
 
+**Constraint discovered while implementing:** the API origin cannot be a multi-level subdomain.
+Cloudflare's free Universal SSL covers only `akashungarala.com` and `*.akashungarala.com`, so the
+originally planned `api.garage.akashungarala.com` failed the TLS handshake outright. The API origin
+is `garage-api.akashungarala.com` instead. Found by curl returning `000` where DNS resolved
+correctly — a failure that reads as a dead server rather than an uncovered certificate.
+
 **Unused but retained:** the `garage.akashungarala.com` DNS record. The frontend is now proxied to
 its Vercel origin directly, so nothing resolves there — but it stays as the target for the ADR-0007
 escape hatch if the frontend ever moves into the cluster. `api.garage.akashungarala.com` remains in

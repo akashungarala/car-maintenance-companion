@@ -144,11 +144,29 @@ variable "cloudflare_zone_id" {
 variable "app_hostname" {
   description = "Hostname serving the application, e.g. garage.example.com."
   type        = string
+
+  validation {
+    condition     = length(split(".", var.app_hostname)) == 3
+    error_message = "Use a single-label subdomain (host.example.com). Cloudflare's free Universal SSL does not cover deeper names, and the TLS handshake will fail."
+  }
 }
 
 variable "api_hostname" {
-  description = "Hostname serving the API, e.g. api.garage.example.com."
+  description = <<-EOT
+    Hostname serving the API.
+
+    MUST be a single label below the apex. Cloudflare's free Universal SSL
+    certificate covers only `example.com` and `*.example.com`, and a wildcard
+    matches one label — so `api.garage.example.com` is not covered and fails
+    the TLS handshake outright. Multi-level wildcards need Advanced Certificate
+    Manager, which is a paid add-on.
+  EOT
   type        = string
+
+  validation {
+    condition     = length(split(".", var.api_hostname)) == 3
+    error_message = "Use a single-label subdomain (host.example.com). Cloudflare's free Universal SSL does not cover deeper names, and the TLS handshake will fail."
+  }
 }
 
 variable "k3s_version" {

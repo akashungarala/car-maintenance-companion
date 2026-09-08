@@ -18,4 +18,4 @@ ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
 cloudflare_api_token = "..." # Zone:DNS:Edit on the zone
 cloudflare_zone_id   = "..." # Cloudflare dashboard -> the domain -> Overview
 app_hostname         = "garage.akashungarala.com"
-api_hostname         = "api.garage.akashungarala.com"
+api_hostname         = "garage-api.akashungarala.com" # single label — see variables.tf
