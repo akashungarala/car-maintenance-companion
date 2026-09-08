@@ -20,8 +20,8 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done   |
 | **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Done   |
 | **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Done   |
-| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Next   |
-| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo   |
+| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Done   |
+| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Next   |
 | **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo   |
 | **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo   |
 | **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
@@ -224,6 +224,49 @@ push and automated tag bump from CI.
 - [ ] No kubeconfig or cluster credential exists in any GitHub secret
 - [ ] All three probe types configured and passing
 - [ ] `git revert` of the tag bump rolls back, and the rollback is timed
+
+**Delivered**
+
+- Argo CD on the cluster, trimmed for 2 CPUs (dex, applicationset and notifications at zero), with
+  an app-of-apps root Application so adding a component is adding a file
+- Sealed Secrets controller at sync wave -1
+- `api` deployed: 2 replicas, all three probe types, non-root, read-only root filesystem, all
+  capabilities dropped, PodDisruptionBudget, HPA capped at 3
+- CI publishes arm64 images to GHCR tagged with the commit SHA, then promotes `main` to a
+  machine-owned `deploy` branch that Argo CD watches
+
+**Acceptance**
+
+- [x] Merge to `main` reaches production with no human `kubectl`
+- [x] No kubeconfig or cluster credential exists in any GitHub secret — the Kubernetes API is not
+      reachable from the internet at all
+- [x] All three probe types configured and passing, 0 restarts
+- [x] `git revert` rolls back, **timed at 212s** — of which ~207s is Argo CD's default 180s
+      reconciliation poll, not the rollout. Recorded in
+      [the runbook](../runbook/deploy-and-rollback.md) with the options for making it faster and why
+      they were not taken.
+
+**Why `main` is not the deploy branch.** GitHub only allows a GitHub Actions bypass actor on
+organisation-owned repositories; the API rejects it on a personal repo. Writing to a protected
+`main` would therefore have needed a deploy key or an elevated PAT — both of which trade away the
+protection ADR-0011 just established. A machine-owned branch needs neither, and is a readable record
+of what production ran.
+
+**Two problems found by running it**
+
+1. Bootstrap could not work in one `kubectl apply`: the root Application is a custom resource whose
+   CRD the same manifests install. Split into two phases rather than told to retry, since a retry
+   hides a predictable ordering problem behind a transient-looking error.
+2. The overlay's default image tag was `latest`, which CI never publishes — pods sat in
+   `ImagePullBackOff` on a tag that had never existed. The registry error was `not found` rather
+   than `unauthorized`, which is how we know the GHCR package is publicly readable.
+
+**Deferred to F9:** cert-manager. TLS already works — Cloudflare terminates at the edge and accepts
+Traefik's default certificate at the origin. cert-manager's remaining value is enabling Cloudflare
+_Full (strict)_ origin validation, which belongs with the other origin hardening in F9 (restricting
+80/443 to Cloudflare's published ranges) rather than on its own.
+
+---
 
 ## F6 — Database
 
