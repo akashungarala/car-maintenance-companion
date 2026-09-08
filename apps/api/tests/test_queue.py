@@ -182,3 +182,20 @@ async def test_enqueue_cli_fails_loudly_without_redis(
 
     with pytest.raises(RuntimeError, match="CMC_REDIS_URL"):
         await enqueue_main()
+
+
+def test_the_worker_registers_the_job_under_the_name_that_is_enqueued() -> None:
+    """ARQ resolves jobs by __qualname__, not __name__.
+
+    Wrapping the task without functools.wraps registered it as
+    `with_dead_letter.<locals>.wrapper`, so every enqueued heartbeat came back
+    "function not found" — while tests that called the wrapper directly passed.
+    This asserts the name ARQ actually uses.
+    """
+    from arq.worker import func as arq_func
+
+    from app.worker import WorkerSettings
+
+    registered = {arq_func(f).name for f in WorkerSettings.functions}
+
+    assert "heartbeat" in registered, f"registered under {registered} instead"

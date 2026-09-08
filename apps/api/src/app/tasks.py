@@ -5,6 +5,7 @@ the async path, its failure handling and its telemetry before any real job
 depends on them — the same reasoning as a Hello World frontend.
 """
 
+import functools
 import json
 from collections.abc import Awaitable, Callable
 from typing import Any
@@ -58,6 +59,7 @@ def with_dead_letter(
     retry scheduling.
     """
 
+    @functools.wraps(func)
     async def wrapper(ctx: dict[str, Any]) -> Any:
         try:
             return await func(ctx)
@@ -66,5 +68,4 @@ def with_dead_letter(
                 await record_dead_letter(ctx, JobOutcome(function=func.__name__, error=str(exc)))
             raise
 
-    wrapper.__name__ = func.__name__
     return wrapper
