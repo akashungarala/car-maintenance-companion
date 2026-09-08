@@ -36,7 +36,13 @@ FROM node:22-bookworm-slim AS runtime
 WORKDIR /app
 
 RUN groupadd --gid 10001 app \
-    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app
+    && useradd --uid 10001 --gid 10001 --no-create-home --shell /usr/sbin/nologin app \
+    # Remove npm and corepack. The container runs `node server.js` and never
+    # installs anything, so they are pure attack surface — and npm's bundled
+    # node-tar is what Trivy flags as CRITICAL even though nothing at runtime
+    # imports it. A production container should not be able to install packages.
+    && rm -rf /usr/local/lib/node_modules/npm /usr/local/lib/node_modules/corepack \
+    /usr/local/bin/npm /usr/local/bin/npx /usr/local/bin/corepack
 
 ENV NODE_ENV=production \
     NEXT_TELEMETRY_DISABLED=1 \
