@@ -57,6 +57,21 @@ def configure_tracing(settings: Settings) -> None:
     _configured = True
 
 
+def flush_tracing(timeout_millis: int = 5000) -> None:
+    """Export anything still buffered.
+
+    BatchSpanProcessor exports on a timer. A long-running server always reaches
+    the next tick, but a short-lived process -- the heartbeat CronJob -- exits
+    well inside that window and its spans are simply discarded. That silently
+    removes the enqueue end of every async trace, leaving the worker's job
+    looking like an unexplained root span.
+    """
+    provider = trace.get_tracer_provider()
+    force_flush = getattr(provider, "force_flush", None)
+    if force_flush is not None:  # a no-op provider when tracing is unconfigured
+        force_flush(timeout_millis)
+
+
 def instrument(app: Any = None, *, engine: Any = None) -> None:
     """Attach auto-instrumentation.
 
