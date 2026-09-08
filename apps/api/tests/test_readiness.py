@@ -10,6 +10,7 @@ registers Redis; the contract is proven before either exists.
 """
 
 from httpx import AsyncClient
+from opentelemetry.instrumentation.utils import is_instrumentation_enabled
 
 from app.health import ReadinessRegistry
 
@@ -87,3 +88,43 @@ async def test_a_slow_check_does_not_hang_readiness(
 
     assert response.status_code == 503
     assert "timed out" in response.json()["checks"]["database"]["detail"]
+
+
+async def test_checks_run_with_instrumentation_suppressed() -> None:
+    """Probe traffic must not generate spans.
+
+    `/ready` is excluded from HTTP instrumentation, but that only suppresses the
+    server span -- the database check inside it still emitted SQLAlchemy spans,
+    and with no HTTP span to parent them they arrived as orphan roots. Measured
+    at 48 spans/minute in production (2 spans per probe, every 5s, two
+    replicas): pure noise burying real traces.
+    """
+    registry = ReadinessRegistry()
+    observed: list[bool] = []
+
+    async def check() -> bool:
+        observed.append(is_instrumentation_enabled())
+        return True
+
+    registry.register("dependency", check)
+    await registry.run_all()
+
+    assert observed == [False], "readiness checks must run with instrumentation suppressed"
+    assert is_instrumentation_enabled(), "suppression must not leak past the check"
+
+
+async def test_suppression_is_released_when_a_check_fails() -> None:
+    """A failing check must not leave instrumentation suppressed process-wide.
+
+    The registry swallows check exceptions, so a leak here would silently
+    disable tracing for every subsequent request in the process.
+    """
+    registry = ReadinessRegistry()
+
+    async def boom() -> bool:
+        raise RuntimeError("dependency exploded")
+
+    registry.register("dependency", boom)
+    await registry.run_all()
+
+    assert is_instrumentation_enabled()

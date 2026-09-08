@@ -22,6 +22,7 @@ from typing import Any
 import structlog
 from fastapi import APIRouter, Request
 from fastapi.responses import JSONResponse
+from opentelemetry.instrumentation.utils import suppress_instrumentation
 
 CheckFn = Callable[[], Awaitable[bool]]
 
@@ -49,8 +50,18 @@ class ReadinessRegistry:
         return tuple(self._checks)
 
     async def _run_one(self, name: str, check: CheckFn) -> CheckResult:
+        # Probe traffic must not generate spans. `/ready` is already excluded
+        # from HTTP instrumentation, but that only suppresses the server span:
+        # the database check inside still emitted SQLAlchemy spans, and with no
+        # HTTP span to parent them they arrived as orphan roots. Measured at 48
+        # spans/minute in production -- two per probe, every five seconds,
+        # across two replicas -- drowning real traces in probe noise.
+        #
+        # Suppression is contextvar-based, and asyncio.wait_for copies the
+        # current context into the task it creates, so it reaches the check.
         try:
-            healthy = await asyncio.wait_for(check(), timeout=self._timeout)
+            with suppress_instrumentation():
+                healthy = await asyncio.wait_for(check(), timeout=self._timeout)
         except TimeoutError:
             # A hung dependency must not hold the probe open until the kubelet's
             # own timeout fires — that reads as a probe failure with no reason.
