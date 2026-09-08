@@ -367,18 +367,25 @@ jobs:
             git checkout -B deploy "$SHA"
           fi
 
-          overlay=infra/k8s/apps/api/overlays/prod/kustomization.yaml
-          sed -i "s|^    newTag: .*|    newTag: $SHA|" "$overlay"
-          grep -q "newTag: $SHA" "$overlay" || {
-            echo "::error::tag substitution did not apply"; exit 1;
-          }
+          # Both overlays, so the API, the worker and the CronJob always run the
+          # same build. Pinning only one lets them drift apart silently.
+          overlays=(
+            infra/k8s/apps/api/overlays/prod/kustomization.yaml
+            infra/k8s/apps/worker/kustomization.yaml
+          )
+          for overlay in "${overlays[@]}"; do
+            sed -i "s|^    newTag: .*|    newTag: $SHA|" "$overlay"
+            grep -q "newTag: $SHA" "$overlay" || {
+              echo "::error::tag substitution did not apply to $overlay"; exit 1;
+            }
+          done
 
           if git diff --quiet; then
             echo "already deployed at $SHA; nothing to do"
             exit 0
           fi
 
-          git add "$overlay"
+          git add "${overlays[@]}"
           git commit -m "deploy: api ${SHA}"
           git push origin deploy
 

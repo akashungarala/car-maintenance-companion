@@ -14,3 +14,5 @@ spec:
                 secretKeyRef:
                   name: cmc-db-app
                   key: uri
+            - name: CMC_REDIS_URL
+              value: redis://redis.cmc.svc.cluster.local:6379/0

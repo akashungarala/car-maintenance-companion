@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # registered for it — but never a liveness check.
     database_url: str | None = None
 
+    # Also unset in Phase 0. Redis backs the job queue, and later the cache and
+    # rate limiter — three concrete uses, not one component looking for a job.
+    redis_url: str | None = None
+
     @model_validator(mode="after")
     def _normalise_database_driver(self) -> Self:
         """Accept CloudNativePG's plain postgresql:// URI.

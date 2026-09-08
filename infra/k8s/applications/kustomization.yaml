@@ -7,4 +7,6 @@ resources:
   - sealed-secrets.yaml
   - cloudnative-pg.yaml
   - database.yaml
+  - redis.yaml
+  - worker.yaml
   - api.yaml

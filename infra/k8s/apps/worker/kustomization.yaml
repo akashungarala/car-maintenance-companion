@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cmc
+
+resources:
+  - worker.yaml
+
+# CI rewrites this alongside the API's tag, so the worker, the CronJob and the
+# API always run the same build.
+images:
+  - name: ghcr.io/akashungarala/car-maintenance-companion/api
+    newTag: latest
