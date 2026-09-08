@@ -73,6 +73,19 @@ service:
   telemetry:
     logs:
       level: info
+    metrics:
+      # Bound to 0.0.0.0, not the default localhost. These counters --
+      # otelcol_exporter_sent_spans against otelcol_exporter_send_failed_spans
+      # -- are the only direct evidence that telemetry is reaching Grafana. A
+      # collector that has silently stopped exporting looks exactly like a
+      # system with no traffic, so leaving them unreachable makes that failure
+      # invisible.
+      readers:
+        - pull:
+            exporter:
+              prometheus:
+                host: 0.0.0.0
+                port: 8888
   pipelines:
     traces:
       receivers: [otlp]
