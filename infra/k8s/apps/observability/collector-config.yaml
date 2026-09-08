@@ -7,6 +7,27 @@ receivers:
         endpoint: 0.0.0.0:4317
 
 processors:
+  # ARQ polls Redis roughly twice a second forever, and the Redis
+  # instrumentation turns every poll into a span: 168 spans/minute measured at
+  # idle, ~7.2M/month with zero users. That does not breach the 50GB trace
+  # allowance, but it buries real traces under poll noise, which defeats the
+  # point of having traces at all.
+  #
+  # Matched on IsRootSpan() rather than on command names. Redis work that
+  # belongs to real activity always has a parent -- an HTTP request or a job --
+  # so a *root* Redis span is by construction the idle poll loop. Matching
+  # command names instead would silently start dropping real spans the day ARQ
+  # changes which commands it polls with.
+  #
+  # This drops at the collector, so the worker still pays to create them. The
+  # cheaper fix is suppressing instrumentation inside ARQ's poll loop, which
+  # means patching library internals; that trade is deliberate and revisitable.
+  filter/poll_noise:
+    error_mode: ignore
+    traces:
+      span:
+        - 'IsRootSpan() and attributes["db.system"] == "redis"'
+
   # First in the pipeline on purpose: under memory pressure the collector
   # must shed load rather than be OOM-killed, because a killed collector
   # loses everything already buffered.
@@ -68,7 +89,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [memory_limiter, resource, batch]
+      processors: [memory_limiter, filter/poll_noise, resource, batch]
       exporters: [otlphttp/grafana]
     metrics:
       receivers: [otlp]
