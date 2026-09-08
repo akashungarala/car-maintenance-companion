@@ -14,17 +14,17 @@ more up front and nothing afterwards.
 
 Each slice is independently mergeable and deployable, and ends green in CI.
 
-| ID     | Slice                                                                                    | Depends on | Status    |
-| ------ | ---------------------------------------------------------------------------------------- | ---------- | --------- |
-| **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done      |
-| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done      |
-| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Code done |
-| **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Code done |
-| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Todo      |
-| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo      |
-| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo      |
-| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo      |
-| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo      |
+| ID     | Slice                                                                                    | Depends on | Status |
+| ------ | ---------------------------------------------------------------------------------------- | ---------- | ------ |
+| **F1** | Monorepo scaffold, tooling, CI skeleton, docs & ADR tree                                 | —          | Done   |
+| **F2** | `api`: FastAPI, `/health`, `/ready`, structlog, settings, arm64 Dockerfile               | F1         | Done   |
+| **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Done   |
+| **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Done   |
+| **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Next   |
+| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Todo   |
+| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo   |
+| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo   |
+| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
 
 **Critical path:** F1 → F2 → F4 → F5 → F6 → F8 → F9
 **Parallel:** F3 alongside F2/F4 · dashboards alongside F7 · docs and ADRs throughout
@@ -144,13 +144,16 @@ support) and ESLint 9 (`eslint-plugin-react` crashes on ESLint 10). Rationale re
 an overlay with no base would be fiction. shadcn/ui is deferred to the first real component (E2)
 rather than scaffolding unused code now.
 
-**Blocked on the Vercel project.** Connect the repository at vercel.com with Root Directory
-`apps/web` to get production and preview deploys.
+**Deployed:** <https://car-maintenance-companion.vercel.app> — Root Directory `apps/web`, auto-deploy
+on push to `main`, preview deploys per branch (guarded by Vercel Deployment Protection).
 
-**Remaining acceptance**
+- [x] Deployed and publicly reachable, serving all six security headers through Vercel's edge
+- [x] PR preview deploys work
 
-- [ ] Deployed and publicly reachable
-- [ ] PR preview deploys work
+**One trap worth remembering:** `output: 'standalone'` breaks Vercel. Its build pipeline emits trace
+files (`next-server.js.nft.json`) that standalone never produces, so the build fails at
+`onBuildComplete` _after_ compiling successfully — which reads like an infrastructure fault. It is
+now opt-in via `BUILD_STANDALONE=1`, set only by the Dockerfile and the Playwright web server.
 
 ---
 
@@ -183,16 +186,29 @@ the origin IP is hidden. Remote state, not local.
   immediately on any non-capacity failure so real errors are not buried
 - CI `infra` job running `tofu fmt -check` and `tofu validate` with no cloud credentials
 
-**Blocked on credentials.** The configuration is validated against real provider schemas but has
-not been applied. Applying needs an Oracle Cloud account (tenancy/user OCID, API key fingerprint
-and key, region, compartment) and a Cloudflare API token and zone ID. See
-[`infra/tofu/README.md`](../../infra/tofu/README.md).
+**Applied.** Cluster live in `us-ashburn-1` AD-1: 2 OCPU / 12 GB Ampere, k3s v1.31.4+k3s1, node
+Ready, all system components running including Traefik. Capacity was available on the first attempt
+— the retry script was not needed, but stays for the rebuild that will eventually need it.
 
-**Remaining acceptance**
+- [x] `tofu apply` from scratch produces a working cluster with no manual steps
+- [x] Origin IP not publicly resolvable — both hostnames resolve to Cloudflare, and TLS terminates
+      at the edge. Verified end to end: `https://garage.akashungarala.com` reaches Traefik and gets
+      its 404, proving the security list, the host iptables rules and the Cloudflare proxy all work.
 
-- [ ] `tofu apply` from scratch produces a working cluster with no manual steps
-- [ ] TLS valid; HTTP redirects to HTTPS; origin IP not publicly resolvable
-- [ ] cert-manager issuing over DNS-01
+**Two bugs found by running it, both now fixed and verified**
+
+1. `curl -sfL … | sh` installed nothing. DNS is unavailable for the first seconds of an OCI
+   instance's life; curl failed silently, the pipe delivered an empty script, and `sh` succeeded on
+   nothing. The node came up looking healthy with no Kubernetes on it.
+2. The verification added to catch (1) then failed on a _healthy_ cluster — `kubectl wait` does not
+   retry on NotFound and ran before the node registered. A check that cries wolf is worse than no
+   check.
+
+**Moved to F5:** cert-manager. Installing it by hand would contradict ADR-0008 — everything above
+the cluster comes from git via Argo CD. F4 ends at a running, reachable k3s node.
+
+**Deferred to F9:** narrowing 80/443 to Cloudflare's published IP ranges, so the origin cannot be
+reached directly.
 
 ---
 
