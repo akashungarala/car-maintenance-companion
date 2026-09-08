@@ -1,0 +1,28 @@
+# The operator that runs PostgreSQL. Wave -1, alongside Sealed Secrets: the
+# Cluster resource below is a custom resource this operator defines, so it must
+# exist before anything referencing it syncs.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cloudnative-pg
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '-1'
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/akashungarala/car-maintenance-companion.git
+    targetRevision: main
+    path: infra/k8s/platform/cloudnative-pg
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cnpg-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+      # The bundle is large and CRD-heavy; client-side apply exceeds the
+      # last-applied annotation size limit.
+      - ServerSideApply=true

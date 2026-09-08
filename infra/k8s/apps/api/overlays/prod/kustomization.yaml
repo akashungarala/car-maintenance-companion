@@ -7,6 +7,7 @@ resources:
   - ../../base
   - ingress.yaml
   - hpa.yaml
+  - migration-job.yaml
 
 # `labels` rather than the older `commonLabels`: commonLabels also injects into
 # the Deployment's selector, and a selector is immutable — changing or removing
@@ -19,6 +20,9 @@ labels:
 
 # CI rewrites this tag and commits it. That commit is the deployment: Argo CD
 # reconciles it, and reverting it is the rollback.
+patches:
+  - path: database-env.yaml
+
 images:
   - name: ghcr.io/akashungarala/car-maintenance-companion/api
     newTag: fb1e92104093266f3b8743d3df1f4bef33e6f210

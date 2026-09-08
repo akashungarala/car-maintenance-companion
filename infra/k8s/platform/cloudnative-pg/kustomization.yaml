@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Pinned, like every remote base here. The operator owns the database's
+  # lifecycle; an unpinned version could change failover or backup behaviour on
+  # an unrelated sync.
+  - https://raw.githubusercontent.com/cloudnative-pg/cloudnative-pg/v1.30.0/releases/cnpg-1.30.0.yaml

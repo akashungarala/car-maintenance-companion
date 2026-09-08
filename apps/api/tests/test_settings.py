@@ -49,3 +49,24 @@ def test_root_path_is_configurable(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CMC_ROOT_PATH", "/apps/car-maintenance-companion/api")
 
     assert Settings().root_path == "/apps/car-maintenance-companion/api"
+
+
+def test_database_url_is_normalised_to_the_async_driver(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CloudNativePG generates a plain postgresql:// URI.
+
+    Accepting it as-is means the operator's own secret can be consumed without
+    string surgery in YAML — and a bare postgresql:// URL would otherwise pick
+    the sync driver, which is not installed, and fail at first connection
+    rather than at startup.
+    """
+    monkeypatch.setenv("CMC_DATABASE_URL", "postgresql://u:p@cmc-db-rw:5432/cmc")
+
+    assert Settings().database_url == "postgresql+asyncpg://u:p@cmc-db-rw:5432/cmc"
+
+
+def test_an_explicit_async_url_is_left_alone(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CMC_DATABASE_URL", "postgresql+asyncpg://u:p@host/db")
+
+    assert Settings().database_url == "postgresql+asyncpg://u:p@host/db"

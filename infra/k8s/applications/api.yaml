@@ -4,7 +4,8 @@ metadata:
   name: api
   namespace: argocd
   annotations:
-    argocd.argoproj.io/sync-wave: '0'
+    # Wave 1: after the database (wave 0) and the operator (wave -1).
+    argocd.argoproj.io/sync-wave: '1'
 spec:
   project: default
   source:

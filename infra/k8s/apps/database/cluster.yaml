@@ -1,0 +1,58 @@
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: cmc-db
+spec:
+  instances: 1
+  imageName: ghcr.io/cloudnative-pg/postgresql:17.2
+
+  # One instance, deliberately. This is a single-node cluster: a second replica
+  # would share the node's fate and buy nothing but memory pressure on 12 GB.
+  # Durability comes from continuous WAL archiving off the node, not replicas.
+  primaryUpdateStrategy: unsupervised
+
+  storage:
+    size: 10Gi
+    storageClass: local-path
+
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 768Mi
+
+  postgresql:
+    parameters:
+      # Modest for a 2-CPU node with 12 GB shared between everything.
+      shared_buffers: 128MB
+      max_connections: '60'
+      # Log slow queries so F8 has something real to alert on.
+      log_min_duration_statement: '500'
+
+  bootstrap:
+    initdb:
+      database: cmc
+      owner: cmc
+      # Generates cmc-db-app with the connection details. Nothing here is
+      # committed; the operator creates the credentials.
+
+  backup:
+    barmanObjectStore:
+      destinationPath: s3://cmc-pg-backups/
+      endpointURL: https://idns1ctqft3r.compat.objectstorage.us-ashburn-1.oraclecloud.com
+      s3Credentials:
+        accessKeyId:
+          name: pg-backup-s3
+          key: ACCESS_KEY_ID
+        secretAccessKey:
+          name: pg-backup-s3
+          key: ACCESS_SECRET_KEY
+      wal:
+        compression: gzip
+      data:
+        compression: gzip
+    # Barman owns lifecycle. The bucket has neither versioning nor a retention
+    # rule, precisely so this policy is the only thing deciding what is kept —
+    # see infra/tofu/storage.tf.
+    retentionPolicy: 14d

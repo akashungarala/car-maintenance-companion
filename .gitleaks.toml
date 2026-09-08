@@ -1,0 +1,23 @@
+# Extends gitleaks' default rules; this file only adds an allowlist.
+[extend]
+useDefault = true
+
+# Singular [allowlist], not [[allowlists]]: the plural form is newer than the
+# gitleaks build bundled by gitleaks-action, which parsed the file happily and
+# then ignored the rule — a silent no-op that looks like a matching problem.
+[allowlist]
+description = """
+SealedSecret ciphertext.
+
+Sealed Secrets encrypts values with a key only the cluster holds, and the
+encrypted form is meant to be committed — that property is what makes GitOps
+workable on a public repository at all (ADR-0001, ADR-0008). The ciphertext is
+high-entropy base64 sitting beside key-like names, so the generic-api-key rule
+matches it every time.
+
+Scoped by path so a genuine secret committed anywhere else is still caught;
+verified by planting an AWS key pair elsewhere and confirming the scan fails.
+Before allowlisting, the flagged value was confirmed to be an AgB… RSA-OAEP
+envelope, with neither the plaintext access key nor the secret present.
+"""
+paths = ['''infra/k8s/.*sealed-.*\.yaml$''']
