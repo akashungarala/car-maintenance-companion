@@ -37,9 +37,12 @@ spec:
       containers:
         - name: migrate
           image: ghcr.io/akashungarala/car-maintenance-companion/api:latest
-          workingDir: /opt/venv/lib/python3.13/site-packages
+          # alembic resolves script_location relative to the working directory, not
+          # to the ini file's location, so this must be the directory holding
+          # migrations/ — otherwise it reports the folder simply does not exist.
+          workingDir: /app
           command: ['alembic']
-          args: ['-c', '/app/alembic.ini', 'upgrade', 'head']
+          args: ['upgrade', 'head']
           env:
             - name: CMC_ENVIRONMENT
               value: prod
