@@ -6,6 +6,7 @@ namespace: cmc
 resources:
   - sealed-grafana-otlp.yaml
   - collector.yaml
+  - agent.yaml
 
 # Generated rather than hand-written, so kustomize appends a hash of the content
 # to the name. A config change therefore produces a new ConfigMap name, which
@@ -16,3 +17,6 @@ configMapGenerator:
   - name: otel-collector
     files:
       - config.yaml=collector-config.yaml
+  - name: otel-agent
+    files:
+      - agent-config.yaml
