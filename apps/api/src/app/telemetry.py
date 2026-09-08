@@ -8,9 +8,13 @@ self-hosted stack is a Collector exporter change and zero edits here
 
 from typing import Any
 
-from opentelemetry import trace
+from opentelemetry import metrics, trace
+from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.propagate import extract, inject
+from opentelemetry.sdk.metrics import Histogram, MeterProvider
+from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
+from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, View
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -19,6 +23,62 @@ from opentelemetry.sdk.trace.sampling import ALWAYS_ON, ParentBased, TraceIdRati
 from app.settings import Settings
 
 _configured = False
+_metrics_configured = False
+
+# Every bucket is a series, multiplied by every label combination. The SDK
+# default is fourteen boundaries; these six cover what we actually alert on --
+# p95 above 1.5s -- at well under half the series cost. 1.5 is a boundary on
+# purpose: without it, the alert threshold falls inside a bucket and p95 has to
+# be interpolated across it.
+HISTOGRAM_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.5, 5.0)
+
+
+def _resource(settings: Settings) -> Resource:
+    return Resource.create(
+        {
+            "service.name": settings.service_name,
+            "service.version": settings.version,
+            "deployment.environment": settings.environment,
+        }
+    )
+
+
+def build_meter_provider(settings: Settings, *, reader: MetricReader) -> MeterProvider:
+    """A meter provider reading through the given reader.
+
+    Split out from configure_metrics so tests can read metrics in memory
+    instead of needing a collector to export to.
+    """
+    return MeterProvider(
+        resource=_resource(settings),
+        metric_readers=[reader],
+        views=[
+            View(
+                instrument_type=Histogram,
+                aggregation=ExplicitBucketHistogramAggregation(HISTOGRAM_BUCKETS),
+            )
+        ],
+    )
+
+
+def configure_metrics(settings: Settings) -> None:
+    """Install a meter provider, if an endpoint is configured.
+
+    A no-op without one, for the same reason tracing is: local development and
+    the tests must not require a running collector.
+    """
+    global _metrics_configured
+    if _metrics_configured or not settings.otlp_endpoint:
+        return
+
+    reader = PeriodicExportingMetricReader(
+        OTLPMetricExporter(endpoint=f"{settings.otlp_endpoint}/v1/metrics"),
+        # Slower than the default 60s would be cheaper still, but alerts
+        # evaluate on five-minute windows and need several points inside one.
+        export_interval_millis=30_000,
+    )
+    metrics.set_meter_provider(build_meter_provider(settings, reader=reader))
+    _metrics_configured = True
 
 
 def configure_tracing(settings: Settings) -> None:
@@ -32,13 +92,7 @@ def configure_tracing(settings: Settings) -> None:
     if _configured or not settings.otlp_endpoint:
         return
 
-    resource = Resource.create(
-        {
-            "service.name": settings.service_name,
-            "service.version": settings.version,
-            "deployment.environment": settings.environment,
-        }
-    )
+    resource = _resource(settings)
 
     # ParentBased means a sampling decision made upstream is honoured, so a
     # sampled request stays whole rather than losing its downstream spans.
