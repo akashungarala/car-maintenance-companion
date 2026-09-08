@@ -99,10 +99,17 @@ change, because that portability is the whole reason for k3s over OKE.
 
 ```bash
 tofu output                       # public IP, URLs, and the AD that had capacity
-tofu output -raw fetch_kubeconfig_command | bash
-export KUBECONFIG=$PWD/kubeconfig
+eval "$(../../scripts/cluster-access.sh)"
 kubectl get nodes
 ```
+
+**The Kubernetes API is not exposed to the internet**, and could not usefully be. k3s issues its
+serving certificate for the node's internal addresses and `127.0.0.1`, so connecting to the public
+IP fails verification; the public hostnames are Cloudflare-proxied and Cloudflare does not forward 6443. `cluster-access.sh` opens an SSH tunnel instead — which is both the working option and the
+safer one, so the 6443 ingress rule was removed entirely.
+
+Routine deployment never uses this: Argo CD reconciles from inside the cluster (ADR-0008). It is for
+bootstrap and debugging.
 
 The kubeconfig is gitignored. It is a cluster-admin credential — treat it as one.
 

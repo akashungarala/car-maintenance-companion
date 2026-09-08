@@ -10,17 +10,12 @@ output "availability_domain" {
 
 output "ssh_command" {
   description = "SSH to the node."
-  value       = "ssh ubuntu@${oci_core_instance.k3s.public_ip}"
+  value       = "ssh -i ~/.ssh/cmc_k3s ubuntu@${oci_core_instance.k3s.public_ip}"
 }
 
-output "fetch_kubeconfig_command" {
-  description = "Copy the cluster kubeconfig locally, rewriting the server address."
-  value = join(" ", [
-    "ssh ubuntu@${oci_core_instance.k3s.public_ip}",
-    "'sudo cat /etc/rancher/k3s/k3s.yaml'",
-    "| sed 's|127.0.0.1|${oci_core_instance.k3s.public_ip}|'",
-    "> kubeconfig && chmod 600 kubeconfig"
-  ])
+output "cluster_access_command" {
+  description = "Open an SSH tunnel to the Kubernetes API and fetch a kubeconfig for it."
+  value       = "scripts/cluster-access.sh"
 }
 
 output "app_url" {

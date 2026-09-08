@@ -56,16 +56,14 @@ resource "oci_core_security_list" "public" {
     }
   }
 
-  # Kubernetes API — operator only. Argo CD reconciles from inside the cluster
-  # (ADR-0008), so nothing external needs this port; it exists for kubectl.
-  ingress_security_rules {
-    protocol = "6"
-    source   = var.admin_cidr
-    tcp_options {
-      min = 6443
-      max = 6443
-    }
-  }
+  # The Kubernetes API is deliberately NOT exposed. Argo CD reconciles from
+  # inside the cluster (ADR-0008), so nothing external needs 6443, and admin
+  # kubectl goes over an SSH tunnel — see scripts/cluster-access.sh.
+  #
+  # This is not only tighter, it is the only thing that works: k3s issues its
+  # API certificate for the node's internal addresses and 127.0.0.1, so
+  # connecting to the public IP fails certificate verification anyway. The
+  # hostnames are Cloudflare-proxied and Cloudflare does not forward 6443.
 
   dynamic "ingress_security_rules" {
     for_each = var.http_ingress_cidrs
