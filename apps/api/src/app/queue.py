@@ -43,8 +43,15 @@ async def enqueue_heartbeat(pool: ArqRedis, *, job_id: str | None = None) -> obj
     Returns None when a job with the same id is already queued. ARQ dedupes on
     job_id, which is what makes a CronJob that fires twice — a retry, an
     overlapping schedule — safe.
+
+    The current trace context travels with the job, so the execution joins the
+    trace that enqueued it rather than starting an unrelated one.
     """
-    return await pool.enqueue_job("heartbeat", _job_id=job_id)
+    from app.telemetry import inject_trace_context
+
+    return await pool.enqueue_job(
+        "heartbeat", _job_id=job_id, trace_carrier=inject_trace_context({})
+    )
 
 
 async def queue_depth(pool: ArqRedis) -> int:
