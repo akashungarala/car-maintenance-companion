@@ -60,7 +60,10 @@ USER 10001
 
 EXPOSE 3000
 
+# Must target the basePath. Probing "/" would get a 404 forever, marking a
+# perfectly healthy container unhealthy — and under Kubernetes that is a
+# restart loop, not just a bad status line.
 HEALTHCHECK --interval=30s --timeout=3s --start-period=10s --retries=3 \
-    CMD ["node", "-e", "fetch('http://127.0.0.1:3000/').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+    CMD ["node", "-e", "fetch('http://127.0.0.1:3000/apps/car-maintenance-companion').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
 
 CMD ["node", "apps/web/server.js"]

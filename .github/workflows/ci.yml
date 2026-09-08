@@ -193,7 +193,8 @@ jobs:
           - service: web
             dockerfile: apps/web/Dockerfile
             port: 3000
-            path: /
+            # basePath: the app deliberately serves nothing at the origin root.
+            path: /apps/car-maintenance-companion
             expect: Hello World
     steps:
       - uses: actions/checkout@v7
