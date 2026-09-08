@@ -23,7 +23,7 @@ export default defineConfig({
     // standalone server is also higher fidelity — it is byte-for-byte what
     // the container image runs.
     command: [
-      'pnpm exec next build',
+      'BUILD_STANDALONE=1 pnpm exec next build',
       'cp -r .next/static .next/standalone/apps/web/.next/',
       `PORT=${PORT} node .next/standalone/apps/web/server.js`,
     ].join(' && '),

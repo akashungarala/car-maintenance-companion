@@ -28,7 +28,8 @@ COPY --from=deps /build/node_modules ./node_modules
 COPY --from=deps /build/apps/web/node_modules ./apps/web/node_modules
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
 COPY apps/web ./apps/web
-ENV NEXT_TELEMETRY_DISABLED=1
+ENV NEXT_TELEMETRY_DISABLED=1 \
+    BUILD_STANDALONE=1
 RUN pnpm --filter @cmc/web exec next build
 
 
