@@ -8,5 +8,6 @@ resources:
   - cloudnative-pg.yaml
   - database.yaml
   - redis.yaml
+  - observability.yaml
   - worker.yaml
   - api.yaml

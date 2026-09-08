@@ -331,14 +331,23 @@ jobs:
   # carries a readable history of exactly what production ran.
   deploy:
     name: Deploy
-    # Same reasoning as publish: explicit result check rather than relying on
-    # implicit needs semantics, which treat an upstream skip as disqualifying.
+    # Gated on ci-passed, NOT on publish. `publish` is a matrix over the
+    # services whose code changed, so an infra-only commit skips it -- and
+    # gating on it would mean manifest changes under infra/k8s/apps/** never
+    # reach the `deploy` branch Argo reads from. Argo would then report the
+    # Application synced and healthy against a branch missing the change:
+    # a green pipeline and a silent no-op.
+    #
+    # A *failed* publish must still block, hence the explicit failure check
+    # rather than `!= 'success'`.
     if: >-
       always()
-      && needs.publish.result == 'success'
+      && needs.ci-passed.result == 'success'
+      && needs.publish.result != 'failure'
+      && needs.publish.result != 'cancelled'
       && github.ref == 'refs/heads/main'
       && github.event_name == 'push'
-    needs: [publish]
+    needs: [ci-passed, publish]
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -350,6 +359,7 @@ jobs:
       - name: Promote main to deploy with this SHA pinned
         env:
           SHA: ${{ github.sha }}
+          PUBLISHED: ${{ needs.publish.result }}
         run: |
           set -euo pipefail
           git config user.name  "github-actions[bot]"
@@ -373,20 +383,33 @@ jobs:
             infra/k8s/apps/api/overlays/prod/kustomization.yaml
             infra/k8s/apps/worker/kustomization.yaml
           )
-          for overlay in "${overlays[@]}"; do
-            sed -i "s|^    newTag: .*|    newTag: $SHA|" "$overlay"
-            grep -q "newTag: $SHA" "$overlay" || {
-              echo "::error::tag substitution did not apply to $overlay"; exit 1;
-            }
-          done
 
-          if git diff --quiet; then
-            echo "already deployed at $SHA; nothing to do"
+          # Only pin a new tag when images were actually built for this SHA.
+          # On an infra-only commit nothing was published, so ghcr has no
+          # image at $SHA and pinning it would guarantee ImagePullBackOff.
+          # The existing tag is correct and stays.
+          if [ "$PUBLISHED" = "success" ]; then
+            for overlay in "${overlays[@]}"; do
+              sed -i "s|^    newTag: .*|    newTag: $SHA|" "$overlay"
+              grep -q "newTag: $SHA" "$overlay" || {
+                echo "::error::tag substitution did not apply to $overlay"; exit 1;
+              }
+              git add "$overlay"
+            done
+            git diff --cached --quiet || git commit -m "deploy: api ${SHA}"
+          else
+            echo "no images published for $SHA (infra-only change); keeping current tags"
+          fi
+
+          # Compare against the remote, not the working tree. The merge above
+          # is already committed by this point, so a working-tree check would
+          # see a clean tree and skip the push -- silently dropping exactly the
+          # manifest-only changes this job exists to promote.
+          if [ "$(git rev-parse deploy)" = "$(git rev-parse origin/deploy 2>/dev/null || echo none)" ]; then
+            echo "deploy already up to date; nothing to push"
             exit 0
           fi
 
-          git add "${overlays[@]}"
-          git commit -m "deploy: api ${SHA}"
           git push origin deploy
 
   # Aggregate gate — this is the single required status check on main.
