@@ -31,10 +31,18 @@ const securityHeaders = [
 ];
 
 const nextConfig: NextConfig = {
-  // Produces a self-contained server bundle for the container image, so the
-  // Kubernetes escape hatch in ADR-0007 stays a config change rather than a
-  // rewrite.
-  output: 'standalone',
+  // `standalone` produces the self-contained server bundle the container image
+  // needs, keeping the Kubernetes escape hatch in ADR-0007 a config change
+  // rather than a rewrite.
+  //
+  // It must NOT be set on Vercel. Vercel runs its own build pipeline that emits
+  // trace files (`next-server.js.nft.json`); with `standalone` those are never
+  // produced and the build dies at onBuildComplete with an ENOENT — *after*
+  // compiling successfully, which makes it read like an infrastructure fault
+  // rather than a config conflict.
+  //
+  // So it is opt-in, set only by the Dockerfile and the Playwright web server.
+  ...(process.env['BUILD_STANDALONE'] === '1' ? { output: 'standalone' as const } : {}),
   reactStrictMode: true,
   poweredByHeader: false,
   async headers() {
