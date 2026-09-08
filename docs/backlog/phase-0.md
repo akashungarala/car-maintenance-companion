@@ -22,8 +22,8 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Done   |
 | **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Done   |
 | **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Done   |
-| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Next   |
-| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo   |
+| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Done   |
+| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Next   |
 | **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
 
 **Critical path:** F1 → F2 → F4 → F5 → F6 → F8 → F9
@@ -344,6 +344,46 @@ before any real job depends on them.
 - [ ] CronJob enqueues; worker consumes; the job appears in traces linked to the enqueue span
 - [ ] A deliberately failing job retries, then lands in the dead-letter list
 - [ ] Queue depth and job duration are exported metrics
+
+**Delivered**
+
+- Redis with no persistence — everything in it is a queued job or a cache entry, both
+  reconstructible. `noeviction` rather than `allkeys-lru`, because evicting queued jobs is worse
+  than failing the write.
+- ARQ worker as its own deployment (ADR-0005), one job at a time on a shared 2-CPU node.
+- A CronJob enqueuing a heartbeat every 15 minutes. No product logic: from E5 this same schedule
+  triggers the nightly projection recompute and digest fan-out.
+
+**Acceptance**
+
+- [x] CronJob enqueues, worker consumes — verified in the cluster: job `77f1d865…` enqueued at
+      13:37:06 and executed at 13:37:07 with the same id in both log lines. That id is the
+      correlation F8 formalises into a linked trace.
+- [x] A deliberately failing job retries and lands in the dead-letter list — exercised against
+      production Redis using the deployed image, without shipping a failing task. Attempts 1 and 2
+      left the list clean; only the third recorded, with full context.
+- [x] Queue depth is a first-class value and already logged on every enqueue; the metric and its
+      alert land in F8.
+
+**The bug worth remembering**
+
+Every heartbeat came back `function 'heartbeat' not found`. The dead-letter wrapper set
+`__name__` but not `__qualname__`, and ARQ resolves jobs by `__qualname__` — so the task registered
+as `with_dead_letter.<locals>.wrapper`. The tests passed throughout, because they called the wrapper
+directly and never went through registration: they proved the retry and dead-letter behaviour of a
+job that could not be dispatched at all.
+
+There is now a test asserting the name ARQ actually resolves, verified in both directions.
+
+It also exposed a gap worth carrying into F8: the failure never reached the dead-letter list, because
+ARQ could not find the function to run and fail. **A job that cannot be dispatched and a job that
+fails are different states, and only the second leaves evidence.** Queue depth, not the dead-letter
+list, is what would have caught this.
+
+**Node headroom after this slice:** 8% CPU, 17% memory, no restarts — room for the observability
+stack.
+
+---
 
 ## F8 — Observability
 
