@@ -129,6 +129,17 @@ and `kubeconfig`; `gitleaks` runs over every commit as the backstop.
 
 ## Known sharp edges
 
+- **Hostnames must be a single label below the apex.** Cloudflare's free Universal SSL certificate
+  covers exactly `example.com` and `*.example.com`, and a wildcard matches one label — so
+  `api.garage.example.com` is _not_ covered and fails with `sslv3 alert handshake failure` before
+  any HTTP is exchanged. DNS resolves fine and the record looks correct, which makes this read as a
+  server problem rather than a certificate one. Multi-level wildcards require Advanced Certificate
+  Manager, a paid add-on. Variable validation now rejects deeper names outright.
+- **Changing a hostname replaces the instance.** Both hostnames are baked into cloud-init as k3s
+  `--tls-san` values, so editing one changes `user_data` and forces a rebuild — which on this
+  provider means re-rolling the dice on Ampere capacity. Run `tofu plan` and read it before
+  applying a hostname change.
+
 - **The instance is reachable but 80/443 hang.** Oracle's Ubuntu images ship an iptables ruleset
   whose INPUT chain ends in REJECT, so the OCI security list is necessary but not sufficient.
   cloud-init inserts ACCEPT rules ahead of it. If you rebuild the node by hand, do the same.
