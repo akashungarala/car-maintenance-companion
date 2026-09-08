@@ -22,6 +22,7 @@ check: lint typecheck test ## Run every gate CI runs
 lint: ## Lint Python and JS/TS
 	uv run ruff check .
 	uv run ruff format --check .
+	pnpm run format:check
 	pnpm run lint
 
 .PHONY: fmt

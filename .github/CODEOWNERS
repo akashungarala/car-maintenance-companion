@@ -1,0 +1,39 @@
+# Ownership by role rather than by repository.
+#
+# This project is run by one person deliberately operating as if it had a small
+# product organisation with separated responsibilities. The roles are real even
+# though the person is the same — the value is that a PR touching a UX spec and
+# a PR touching Kubernetes manifests are recognisably different kinds of work,
+# reviewed against different criteria.
+#
+# See ADR-0001 for why this is a monorepo rather than one repo per role.
+
+# Default owner for anything not matched below.
+*                           @akashungarala
+
+# --- Product -----------------------------------------------------------------
+/docs/product/              @akashungarala
+/docs/backlog/              @akashungarala
+
+# --- UX ----------------------------------------------------------------------
+# Changes here gate frontend stories: a frontend issue cannot become Ready
+# without a committed spec in this directory.
+/docs/ux/                   @akashungarala
+
+# --- Frontend ----------------------------------------------------------------
+/apps/web/                  @akashungarala
+/packages/                  @akashungarala
+
+# --- Backend -----------------------------------------------------------------
+/apps/api/                  @akashungarala
+
+# --- Infrastructure / DevOps -------------------------------------------------
+/infra/                     @akashungarala
+/.github/                   @akashungarala
+/compose.yaml               @akashungarala
+/apps/api/Dockerfile        @akashungarala
+
+# --- Decisions ---------------------------------------------------------------
+# ADRs record why things are the way they are. A change here is a change of
+# direction, not a detail.
+/docs/adr/                  @akashungarala
