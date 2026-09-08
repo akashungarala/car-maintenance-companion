@@ -7,11 +7,10 @@ const securityHeaders = [
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
-  {
-    // Two years, preloadable. Only ever served over HTTPS in production.
-    key: 'Strict-Transport-Security',
-    value: 'max-age=63072000; includeSubDomains; preload',
-  },
+  // Deliberately no Strict-Transport-Security. This app is served under a path
+  // on akashungarala.com, so an HSTS header here would set policy for the whole
+  // parent domain and every subdomain of it — including ones this project knows
+  // nothing about. That belongs to the portfolio project, which owns the domain.
   {
     // Deliberately strict while there is nothing to break. Tightening later,
     // once third-party scripts exist, is far harder than starting strict.
@@ -30,7 +29,15 @@ const securityHeaders = [
   },
 ];
 
+// The app is served at akashungarala.com/apps/car-maintenance-companion, proxied
+// by the portfolio project's Next.js rewrites. basePath makes this app serve
+// *every* route under that same prefix, so the proxy maps 1:1 and needs no path
+// rewriting — links, asset URLs, form actions and redirects all stay valid.
+// Without it, the HTML would load and every /_next/static asset would 404.
+const BASE_PATH = '/apps/car-maintenance-companion';
+
 const nextConfig: NextConfig = {
+  basePath: BASE_PATH,
   // `standalone` produces the self-contained server bundle the container image
   // needs, keeping the Kubernetes escape hatch in ADR-0007 a config change
   // rather than a rewrite.

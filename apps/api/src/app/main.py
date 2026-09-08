@@ -25,6 +25,7 @@ def create_app(
     app = FastAPI(
         title="Car Maintenance Companion API",
         version=settings.version,
+        root_path=settings.root_path,
         # Phase 0 exposes no product API. Docs stay on so the OpenAPI contract
         # pipeline (and its CI drift check) is wired before there is a contract.
         docs_url="/docs",
