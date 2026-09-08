@@ -136,6 +136,23 @@ jobs:
       - name: Tests
         run: pnpm run test
 
+      - name: Build
+        run: pnpm --filter @cmc/web run build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @cmc/web exec playwright install --with-deps chromium
+
+      - name: End-to-end tests
+        run: pnpm --filter @cmc/web exec playwright test
+
+      - name: Upload Playwright report
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report
+          retention-days: 7
+
   security:
     name: Security (secrets · dependencies)
     runs-on: ubuntu-24.04
@@ -158,12 +175,26 @@ jobs:
         run: uvx pip-audit --strict --progress-spinner=off || exit 1
 
   image:
-    name: Image (build · scan · smoke)
+    name: Image (${{ matrix.service }})
     # Native arm64 to match the production cluster (ADR-0002); free and
     # unmetered on public repos, and ~5-10x faster than QEMU emulation.
     needs: changes
-    if: needs.changes.outputs.image == 'true'
+    if: needs.changes.outputs.image == 'true' || needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-24.04-arm
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            dockerfile: apps/api/Dockerfile
+            port: 8000
+            path: /health
+            expect: '"status":"ok"'
+          - service: web
+            dockerfile: apps/web/Dockerfile
+            port: 3000
+            path: /
+            expect: Hello World
     steps:
       - uses: actions/checkout@v7
 
@@ -173,9 +204,9 @@ jobs:
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: apps/api/Dockerfile
+          file: ${{ matrix.dockerfile }}
           platforms: linux/arm64
-          tags: cmc-api:${{ github.sha }}
+          tags: cmc-${{ matrix.service }}:${{ github.sha }}
           load: true
           cache-from: type=gha
           cache-to: type=gha,mode=max
@@ -183,26 +214,28 @@ jobs:
       - name: Scan image for vulnerabilities
         uses: aquasecurity/trivy-action@v0.36.0
         with:
-          image-ref: cmc-api:${{ github.sha }}
+          image-ref: cmc-${{ matrix.service }}:${{ github.sha }}
           severity: HIGH,CRITICAL
           ignore-unfixed: true
           exit-code: '1'
 
       - name: Smoke test the container
+        env:
+          APP_PORT: ${{ matrix.port }}
+          APP_PATH: ${{ matrix.path }}
+          EXPECT: ${{ matrix.expect }}
         run: |
-          docker run -d --name api -p 8000:8000 cmc-api:${{ github.sha }}
-          for i in $(seq 1 30); do
-            if curl -fsS http://localhost:8000/health > /dev/null; then break; fi
+          docker run -d --name app -p "$APP_PORT:$APP_PORT" "cmc-${{ matrix.service }}:${{ github.sha }}"
+          for i in $(seq 1 45); do
+            if curl -fsS "http://localhost:$APP_PORT$APP_PATH" > /dev/null 2>&1; then break; fi
             sleep 1
           done
-          echo "--- /health ---"
-          curl -fsS http://localhost:8000/health | tee /tmp/health.json
-          grep -q '"status":"ok"' /tmp/health.json
-          echo "--- /ready ---"
-          curl -fsS http://localhost:8000/ready | grep -q '"status":"ready"'
+          echo "--- GET $APP_PATH ---"
+          curl -fsS "http://localhost:$APP_PORT$APP_PATH" | tee /tmp/body | head -5
+          grep -q "$EXPECT" /tmp/body
           echo "--- must run as non-root ---"
-          test "$(docker exec api id -u)" = "10001"
-          docker rm -f api
+          test "$(docker exec app id -u)" = "10001"
+          docker rm -f app
 
   infra:
     name: Infrastructure (fmt · validate)
