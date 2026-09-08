@@ -1,17 +1,15 @@
-# Remote state in Cloudflare R2 (S3-compatible, 10 GB free, no egress fees).
+# Remote state in OCI Object Storage, via its S3-compatible API.
 #
 # Partial configuration: the bucket must exist before `tofu init`, so the
-# credentials and bucket name are supplied at init time rather than committed:
+# endpoint and credentials are supplied at init time rather than committed:
 #
-#   tofu init -backend-config=backend.hcl
+#   tofu init -backend-config=backend.hcl -migrate-state
 #
-# State contains the instance's private details and must never be committed —
-# `.gitignore` denies *.tfstate for that reason.
+# State contains infrastructure detail and credentials, and must never be
+# committed — `.gitignore` denies *.tfstate and backend.hcl for that reason.
 terraform {
   backend "s3" {
     key = "car-maintenance-companion/prod.tfstate"
-
-    region = "auto"
 
     # R2 is S3-compatible but is not S3; these checks do not apply to it.
     skip_credentials_validation = true
