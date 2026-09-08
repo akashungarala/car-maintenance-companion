@@ -1,0 +1,21 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+# See README.md for how to obtain each value.
+
+# --- Oracle Cloud ---
+tenancy_ocid        = "ocid1.tenancy.oc1..aaaa..."
+user_ocid           = "ocid1.user.oc1..aaaa..."
+api_key_fingerprint = "aa:bb:cc:dd:..."
+compartment_ocid    = "ocid1.tenancy.oc1..aaaa..." # root compartment == tenancy OCID
+region              = "us-ashburn-1"
+
+# --- Access ---
+# Your address only. Refusing 0.0.0.0/0 here is enforced by a validation rule.
+#   curl -s ifconfig.me
+admin_cidr     = "203.0.113.10/32"
+ssh_public_key = "ssh-ed25519 AAAA... you@example.com"
+
+# --- Cloudflare ---
+cloudflare_api_token = "..." # Zone:DNS:Edit on the zone
+cloudflare_zone_id   = "..." # Cloudflare dashboard -> the domain -> Overview
+app_hostname         = "garage.akashungarala.com"
+api_hostname         = "api.garage.akashungarala.com"

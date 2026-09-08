@@ -37,7 +37,11 @@ kubeconfig*
 *.tfstate.*
 *.tfvars
 !*.tfvars.example
-.terraform.lock.hcl
+backend.hcl
+!backend.hcl.example
+kubeconfig
+# The lock file SHOULD be committed for reproducible provider versions.
+!.terraform.lock.hcl
 
 # Editor / OS
 .DS_Store

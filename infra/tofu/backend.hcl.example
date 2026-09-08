@@ -1,0 +1,8 @@
+# Copy to backend.hcl (gitignored) and fill in.
+# Create the R2 bucket first, in the Cloudflare dashboard or with wrangler:
+#   wrangler r2 bucket create cmc-tofu-state
+
+bucket     = "cmc-tofu-state"
+endpoints  = { s3 = "https://<CLOUDFLARE_ACCOUNT_ID>.r2.cloudflarestorage.com" }
+access_key = "<R2_ACCESS_KEY_ID>"
+secret_key = "<R2_SECRET_ACCESS_KEY>"

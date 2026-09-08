@@ -1,0 +1,65 @@
+#cloud-config
+# Node bootstrap. Kept small on purpose: everything above the cluster is
+# installed by Argo CD from git (ADR-0008), so this file only has to produce a
+# reachable, hardened k3s node.
+
+package_update: true
+package_upgrade: true
+
+packages:
+  - iptables-persistent
+  - unattended-upgrades
+  - curl
+  - jq
+
+write_files:
+  # Security patches apply themselves. A single-node cluster that nobody
+  # patches is a worse risk than an unattended restart.
+  - path: /etc/apt/apt.conf.d/20auto-upgrades
+    content: |
+      APT::Periodic::Update-Package-Lists "1";
+      APT::Periodic::Unattended-Upgrade "1";
+
+  - path: /etc/ssh/sshd_config.d/99-hardening.conf
+    content: |
+      PasswordAuthentication no
+      PermitRootLogin no
+      KbdInteractiveAuthentication no
+
+runcmd:
+  # ---------------------------------------------------------------------
+  # Oracle's Ubuntu images ship an iptables ruleset whose INPUT chain ends
+  # in a REJECT, so the OCI security list alone is not enough — traffic is
+  # allowed to the VNIC and then dropped by the host. Rules must be
+  # *inserted* before that REJECT, not appended after it. This is the single
+  # most common reason an OCI instance appears unreachable on 80/443.
+  # ---------------------------------------------------------------------
+  - iptables -I INPUT 1 -p tcp --dport 80 -j ACCEPT
+  - iptables -I INPUT 1 -p tcp --dport 443 -j ACCEPT
+  - iptables -I INPUT 1 -p tcp --dport 6443 -j ACCEPT
+  # Pod and service traffic on the cluster's internal networks.
+  - iptables -I INPUT 1 -s 10.42.0.0/16 -j ACCEPT
+  - iptables -I INPUT 1 -s 10.43.0.0/16 -j ACCEPT
+  - netfilter-persistent save
+
+  - systemctl restart ssh
+
+  # ---------------------------------------------------------------------
+  # k3s. Version is pinned: an unpinned installer makes the node
+  # unreproducible and can silently upgrade the control plane on rebuild.
+  # Traefik ships with k3s and is kept — it is the ingress in the plan.
+  # ---------------------------------------------------------------------
+  - |
+    curl -sfL https://get.k3s.io | \
+      INSTALL_K3S_VERSION="${k3s_version}" \
+      INSTALL_K3S_EXEC="server \
+        --write-kubeconfig-mode 0600 \
+        --node-name cmc-k3s \
+        --tls-san ${app_hostname} \
+        --tls-san ${api_hostname}" \
+      sh -s -
+
+  - kubectl wait --for=condition=Ready node/cmc-k3s --timeout=300s || true
+  - touch /var/lib/cloud/cmc-bootstrap-complete
+
+final_message: "k3s node ready after $UPTIME seconds"
