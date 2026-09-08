@@ -55,6 +55,16 @@ class Settings(BaseSettings):
     # rate limiter — three concrete uses, not one component looking for a job.
     redis_url: str | None = None
 
+    # OTLP endpoint of the local Collector, never a vendor URL (ADR-0004).
+    # Unset means tracing is off, which is the correct default for local
+    # development and tests.
+    otlp_endpoint: str | None = None
+
+    # 1.0 while traffic is negligible: sampling away traces on a system with no
+    # load just makes debugging harder for no saving. Revisit against the
+    # 50 GB trace allowance if volume ever justifies it.
+    trace_sample_ratio: float = 1.0
+
     @model_validator(mode="after")
     def _normalise_database_driver(self) -> Self:
         """Accept CloudNativePG's plain postgresql:// URI.

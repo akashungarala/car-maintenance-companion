@@ -14,6 +14,7 @@ import re
 from typing import Any, TextIO
 
 import structlog
+from opentelemetry import trace
 from structlog.typing import EventDict, WrappedLogger
 
 from app.settings import Settings
@@ -52,6 +53,23 @@ def redact_sensitive(
     return event_dict
 
 
+def add_trace_correlation(
+    _logger: WrappedLogger | None, _method_name: str, event_dict: EventDict
+) -> EventDict:
+    """Attach the active trace and span ids.
+
+    This is the join that makes a log line reachable from a trace and back
+    again. Fields are omitted entirely outside a span rather than emitted
+    empty — an empty trace_id reads as a broken trace rather than no trace.
+    """
+    span = trace.get_current_span()
+    ctx = span.get_span_context()
+    if ctx.is_valid:
+        event_dict["trace_id"] = format(ctx.trace_id, "032x")
+        event_dict["span_id"] = format(ctx.span_id, "016x")
+    return event_dict
+
+
 def _service_context(settings: Settings) -> Any:
     def processor(_logger: WrappedLogger, _method_name: str, event_dict: EventDict) -> EventDict:
         event_dict.setdefault("service", settings.service_name)
@@ -80,6 +98,7 @@ def configure_logging(settings: Settings, stream: TextIO | None = None) -> None:
     level = logging.getLevelNamesMapping()[settings.log_level]
 
     shared: list[Any] = [
+        add_trace_correlation,
         structlog.processors.add_log_level,
         structlog.processors.TimeStamper(fmt="iso", utc=True),
         _service_context(settings),
@@ -91,6 +110,7 @@ def configure_logging(settings: Settings, stream: TextIO | None = None) -> None:
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
+            add_trace_correlation,
             structlog.processors.add_log_level,
             structlog.processors.TimeStamper(fmt="iso", utc=True),
             _service_context(settings),
