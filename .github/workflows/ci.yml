@@ -264,6 +264,41 @@ jobs:
         run: tofu validate
         working-directory: infra/tofu
 
+      # A malformed collector config is only discovered as CrashLoopBackOff,
+      # after Argo has already synced it. The collector binary validates its
+      # own config, so the same check runs here for free. Verified that it
+      # catches errors rather than passing everything: renaming a receiver to
+      # `kubeletstatz` fails with an unknown-type error.
+      #
+      # The env vars are placeholders. Validation resolves ${env:...} but never
+      # connects, so no real credential is involved.
+      - name: Validate collector configuration
+        env:
+          IMAGE: otel/opentelemetry-collector-contrib:0.116.1
+        run: |
+          set -euo pipefail
+          for config in infra/k8s/apps/observability/*-config.yaml; do
+            echo "validating $config"
+            docker run --rm \
+              -e GRAFANA_OTLP_ENDPOINT=https://validation.invalid/otlp \
+              -e GRAFANA_OTLP_AUTHORIZATION=placeholder \
+              -e K8S_NODE_NAME=validation \
+              -v "$PWD/infra/k8s/apps/observability:/conf:ro" \
+              "$IMAGE" validate --config="/conf/$(basename "$config")"
+          done
+
+      # Catches an overlay that renders invalid YAML or references a file that
+      # no longer exists -- both of which otherwise surface as a failed Argo
+      # sync rather than a failed build.
+      - name: Render Kustomize overlays
+        run: |
+          set -euo pipefail
+          for dir in infra/k8s/apps/*/overlays/* infra/k8s/apps/* infra/k8s/applications; do
+            [ -f "$dir/kustomization.yaml" ] || continue
+            echo "rendering $dir"
+            kubectl kustomize "$dir" > /dev/null
+          done
+
   # Publishes only from main. PRs build and scan images (the `image` job) but
   # never push, so a fork PR cannot put anything into the registry.
   publish:

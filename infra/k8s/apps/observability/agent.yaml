@@ -1,0 +1,111 @@
+# The node agent (ADR-0013). Separate from the gateway collector on purpose:
+# log tailing needs host mounts and a root filesystem view, and the gateway
+# keeps its hardened non-root posture and its sole-egress role.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: otel-agent
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: otel-agent
+rules:
+  # kubeletstats reads the kubelet's stats endpoint.
+  - apiGroups: ['']
+    resources: [nodes/stats, nodes/proxy]
+    verbs: [get]
+  # k8s_cluster and k8sattributes watch workload state. Read-only throughout:
+  # this component observes the cluster, it never acts on it.
+  - apiGroups: ['']
+    resources: [events, namespaces, nodes, pods, replicationcontrollers, resourcequotas, services]
+    verbs: [get, list, watch]
+  - apiGroups: [apps]
+    resources: [daemonsets, deployments, replicasets, statefulsets]
+    verbs: [get, list, watch]
+  - apiGroups: [batch]
+    resources: [jobs, cronjobs]
+    verbs: [get, list, watch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: otel-agent
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: otel-agent
+subjects:
+  - kind: ServiceAccount
+    name: otel-agent
+    namespace: cmc
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: otel-agent
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: otel-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: otel-agent
+    spec:
+      serviceAccountName: otel-agent
+      containers:
+        - name: agent
+          image: otel/opentelemetry-collector-contrib:0.116.1
+          args: ['--config=/conf/agent-config.yaml']
+          env:
+            - name: K8S_NODE_NAME
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+          ports:
+            - name: metrics
+              containerPort: 8888
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              # Deliberately above the memory_limiter's 120MiB, so the limiter
+              # is what reacts to pressure rather than the kernel's OOM killer.
+              memory: 192Mi
+          securityContext:
+            # Reading /var/log/pods requires it; the gateway collector, which
+            # needs no host access, stays non-root with a read-only root.
+            runAsUser: 0
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: config
+              mountPath: /conf
+            - name: varlogpods
+              mountPath: /var/log/pods
+              readOnly: true
+            - name: varlibdockercontainers
+              mountPath: /var/lib/docker/containers
+              readOnly: true
+            # filelog checkpoints its read offsets here. Without it the agent
+            # re-reads every log file from scratch on restart.
+            - name: storage
+              mountPath: /var/lib/otelcol
+      volumes:
+        - name: config
+          configMap:
+            name: otel-agent
+        - name: varlogpods
+          hostPath:
+            path: /var/log/pods
+        - name: varlibdockercontainers
+          hostPath:
+            path: /var/lib/docker/containers
+        - name: storage
+          hostPath:
+            path: /var/lib/otelcol
+            type: DirectoryOrCreate
