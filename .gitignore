@@ -40,6 +40,7 @@ kubeconfig*
 !*.tfvars.example
 backend.hcl
 !backend.hcl.example
+*_override.tf
 kubeconfig
 # The lock file SHOULD be committed for reproducible provider versions.
 !.terraform.lock.hcl
