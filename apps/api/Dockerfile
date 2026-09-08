@@ -44,6 +44,15 @@ ENV PATH="/opt/venv/bin:$PATH" \
 
 COPY --from=builder --chown=root:root /opt/venv /opt/venv
 
+# Remove pip from the runtime image. The application runs from a pre-built venv
+# and never installs anything, so pip is pure attack surface — and its bundled
+# _vendor tree (msgpack, pkg_resources) is what Trivy flags as HIGH severity
+# even though the application never imports it. A production container should
+# not be able to install packages anyway.
+RUN rm -rf /usr/local/lib/python3.13/site-packages/pip \
+    /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
+    /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13
+
 USER 10001
 
 EXPOSE 8000
