@@ -21,8 +21,8 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | **F3** | `web`: Next.js Hello World, Vitest, Playwright smoke, Vercel deploy                      | F1         | Done   |
 | **F4** | OpenTofu: Oracle Cloud VM + network, Cloudflare DNS, k3s, Traefik, cert-manager          | F1         | Done   |
 | **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Done   |
-| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Next   |
-| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Todo   |
+| **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Done   |
+| **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Next   |
 | **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Todo   |
 | **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
 
@@ -281,6 +281,55 @@ ordered ahead of the rollout by Argo sync-wave; WAL archiving and base backups t
 - [ ] **Restore drill:** a backup is restored from R2 into a scratch namespace and verified.
       A backup that has never been restored is not a backup (ADR-0003)
 - [ ] Backup age is a monitored metric with a 26-hour staleness alert
+
+**Delivered**
+
+- CloudNativePG operator and a PostgreSQL 17 cluster, one instance — a second replica on a
+  single-node cluster shares the node's fate and buys only memory pressure. Durability comes from
+  WAL archiving off the node.
+- Continuous WAL archiving and nightly base backups to OCI Object Storage, retained 14 days by
+  Barman. R2 was the plan, but enabling it needs a card on file; OCI Always Free includes 10 GB and
+  is S3-compatible.
+- Alembic wired to application settings, with an initial empty revision. `env.py` refuses to run
+  without a URL rather than defaulting — a silent default is how a migration lands on the wrong
+  database.
+- `/ready` reports the database; `/health` deliberately does not, so an outage removes pods from the
+  Service without restarting them.
+- OpenTofu state moved off a laptop into versioned object storage, closing the F4 risk.
+
+**Acceptance**
+
+- [x] Migrations run automatically before the new image serves traffic — a PreSync hook, which must
+      _complete_ before the sync proceeds. Verified twice: once passing, and once failing, where the
+      previous pods kept serving and the new ones never rolled.
+- [x] `alembic upgrade head` and `downgrade base` round-trip verified in CI, against a real Postgres
+      container rather than SQLite
+- [x] **Restore drill passed** — the latest backup restored into a scratch namespace and the marker
+      row recovered in **44 seconds**. Reusable as `scripts/restore-drill.sh`, documented in
+      [the runbook](../runbook/deploy-and-rollback.md).
+- [ ] Backup age as a monitored metric with a 26-hour staleness alert — deferred to F8, which is
+      where metrics and alerting are built. The data is already exposed by the operator.
+
+**Four problems found by running it**
+
+1. **Deployments were silently skipped for backend-only changes.** GitHub propagates `skipped`
+   transitively through `needs`, so once a path filter skipped the frontend job, everything
+   downstream of `ci-passed` was skipped too — with a green tick on the run. The failure mode was
+   exactly backwards: the more narrowly scoped the change, the less likely it was to deploy.
+2. **The migration job ran from the wrong directory.** Alembic resolves `script_location` relative
+   to the working directory, not the ini file, so it reported the migrations folder did not exist.
+3. **gitleaks flagged the SealedSecret ciphertext.** A false positive, but confirmed as one before
+   allowlisting — and the allowlist was then tested by planting a real key elsewhere. The first
+   attempt used `[[allowlists]]`, which the action's gitleaks build parsed and silently ignored.
+4. **The tunnel-reuse check tested only that the port was bound**, so it happily reused a dead
+   forwarder that refused every connection.
+
+**Known future work:** CloudNativePG 1.30 warns that native Barman Cloud backup and recovery is
+removed in 1.31.0 in favour of the Barman Cloud Plugin. The operator is pinned, so nothing breaks
+until it is deliberately upgraded — but the migration must happen before that bump, and the restore
+drill is how it gets verified.
+
+---
 
 ## F7 — Async foundation
 
