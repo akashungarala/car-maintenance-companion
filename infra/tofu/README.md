@@ -115,22 +115,23 @@ The kubeconfig is gitignored. It is a cluster-admin credential — treat it as o
 
 ## State
 
-> **Currently local, not R2.** The S3 backend in `backend.tf` cannot initialise until the R2 bucket
-> exists, and creating that bucket needs a _second_ Cloudflare token with R2 permissions — the token
-> used here is deliberately scoped to `Zone:DNS:Edit` and nothing else. Rather than widen that token
-> or block provisioning, state is temporarily local via a gitignored `backend_override.tf`.
->
-> **This is a real risk while it lasts:** `terraform.tfstate` is on one machine and is not backed up.
-> Losing it means re-importing resources by hand. Migrate during F6, which stands up R2 for database
-> backups anyway:
->
-> ```bash
-> tofu init -backend-config=backend.hcl -migrate-state && rm backend_override.tf
-> ```
+State lives in **OCI Object Storage** via its S3-compatible API, in the `cmc-tofu-state` bucket with
+versioning enabled. It contains infrastructure detail and credentials; `.gitignore` denies
+`*.tfstate`, `terraform.tfvars`, `backend.hcl` and `kubeconfig`, and `gitleaks` runs over every
+commit as the backstop.
 
-State lives in Cloudflare R2 (S3-compatible, free, no egress fees) and contains infrastructure
-details that must not be public. `.gitignore` denies `*.tfstate`, `terraform.tfvars`, `backend.hcl`
-and `kubeconfig`; `gitleaks` runs over every commit as the backstop.
+Configure it once:
+
+```bash
+tofu output -raw s3_endpoint          # fill these into backend.hcl
+tofu output -raw s3_access_key_id
+tofu output -raw s3_secret_access_key
+tofu init -backend-config=backend.hcl -migrate-state
+```
+
+> Newly created OCI customer secret keys take up to a minute to propagate. Until they do, the S3
+> backend fails with `SignatureDoesNotMatch` and a message about the region — which reads like a
+> misconfiguration rather than a timing problem. Retry before changing anything.
 
 `.terraform.lock.hcl` **is** committed — provider versions must be reproducible.
 
