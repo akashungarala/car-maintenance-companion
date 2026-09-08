@@ -21,4 +21,4 @@ labels:
 # reconciles it, and reverting it is the rollback.
 images:
   - name: ghcr.io/akashungarala/car-maintenance-companion/api
-    newTag: latest
+    newTag: c9fc38d9b1b195e0634bdfb48832f0f53645288b

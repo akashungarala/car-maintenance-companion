@@ -4,8 +4,13 @@ The one manual step in the entire delivery pipeline. Run once, on a new cluster.
 
 ```bash
 eval "$(scripts/cluster-access.sh)"
-kubectl apply -k infra/k8s/bootstrap
+scripts/bootstrap-cluster.sh
 ```
+
+It runs in two phases because it has to: the root Application is a custom resource whose CRD is
+installed by the same manifests, so a single `kubectl apply -k` always fails on a fresh cluster with
+`no matches for kind "Application"`. The script installs Argo CD, waits for the CRD to register,
+then applies the root Application.
 
 That installs Argo CD and the root Application. From then on Argo CD manages everything in
 `applications/`, including itself — so upgrading Argo CD is a git commit, not another manual apply.

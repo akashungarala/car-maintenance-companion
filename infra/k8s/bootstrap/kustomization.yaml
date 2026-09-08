@@ -8,7 +8,10 @@ resources:
   # Pinned. An unpinned remote base means the cluster's control plane can change
   # underneath you on an unrelated apply.
   - https://raw.githubusercontent.com/argoproj/argo-cd/v3.5.2/manifests/install.yaml
-  - root-application.yaml
+
+# root-application.yaml is deliberately NOT listed here. It is a custom resource
+# whose CRD these manifests install, so applying both together always fails on a
+# fresh cluster. scripts/bootstrap-cluster.sh applies it as a second phase.
 
 patches:
   # This node has 2 CPUs. These three components are scaled to zero because
