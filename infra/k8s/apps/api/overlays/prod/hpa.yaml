@@ -1,0 +1,26 @@
+# Scaling is capped at 3 deliberately: this node has 2 CPUs, and an autoscaler
+# allowed to outgrow its node just produces Pending pods, which look like an
+# outage while being a scheduling problem.
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: api
+  minReplicas: 2
+  maxReplicas: 3
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+  behavior:
+    scaleDown:
+      # Slow to scale down, quick to scale up. Flapping replicas cost more than
+      # a spare pod does.
+      stabilizationWindowSeconds: 300

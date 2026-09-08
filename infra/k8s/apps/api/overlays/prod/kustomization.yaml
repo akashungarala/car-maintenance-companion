@@ -1,0 +1,24 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cmc
+
+resources:
+  - ../../base
+  - ingress.yaml
+  - hpa.yaml
+
+# `labels` rather than the older `commonLabels`: commonLabels also injects into
+# the Deployment's selector, and a selector is immutable — changing or removing
+# this label later would require deleting and recreating the Deployment.
+labels:
+  - pairs:
+      app.kubernetes.io/instance: prod
+    includeSelectors: false
+    includeTemplates: true
+
+# CI rewrites this tag and commits it. That commit is the deployment: Argo CD
+# reconciles it, and reverting it is the rollback.
+images:
+  - name: ghcr.io/akashungarala/car-maintenance-companion/api
+    newTag: latest

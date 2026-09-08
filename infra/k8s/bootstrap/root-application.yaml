@@ -1,0 +1,27 @@
+# The "app of apps": the only Application created by hand. It watches
+# applications/ and creates everything else, so from here on adding a component
+# to the cluster is adding a file to that directory.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: root
+  namespace: argocd
+  finalizers:
+    # Deleting this Application should cascade to what it created, rather than
+    # orphaning a cluster's worth of resources with no owner.
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/akashungarala/car-maintenance-companion.git
+    targetRevision: main
+    path: infra/k8s/applications
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

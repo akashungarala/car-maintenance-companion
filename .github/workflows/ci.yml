@@ -264,6 +264,54 @@ jobs:
         run: tofu validate
         working-directory: infra/tofu
 
+  # Publishes only from main. PRs build and scan images (the `image` job) but
+  # never push, so a fork PR cannot put anything into the registry.
+  publish:
+    name: Publish (${{ matrix.service }})
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: [ci-passed]
+    runs-on: ubuntu-24.04-arm
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - service: api
+            dockerfile: apps/api/Dockerfile
+          - service: web
+            dockerfile: apps/web/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.dockerfile }}
+          platforms: linux/arm64
+          push: true
+          # The SHA tag is what deployments reference — immutable, so a given
+          # deployment always means exactly one image. `main` is a convenience
+          # pointer for humans and is never what the cluster runs.
+          tags: |
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:${{ github.sha }}
+            ghcr.io/${{ github.repository }}/${{ matrix.service }}:main
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          provenance: true
+          sbom: true
+
   # Aggregate gate — this is the single required status check on main.
   # Adding a new job above means adding it to `needs` here, so nothing
   # can silently become non-blocking.

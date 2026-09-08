@@ -1,0 +1,11 @@
+# Keeps a voluntary disruption (node drain, eviction) from taking the whole
+# service down at once. With 2 replicas this permits exactly one at a time.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: api
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: api
