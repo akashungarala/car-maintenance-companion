@@ -104,6 +104,16 @@ runcmd:
       journalctl -u k3s --no-pager -n 50 >&2
       exit 1
     }
+    # Wait for the node object to exist before waiting for it to be Ready.
+    # `kubectl wait` does not retry on NotFound — it exits immediately — and
+    # k3s registers the node a few seconds after the service starts. Without
+    # this loop the check fails on a perfectly healthy cluster.
+    for i in $(seq 1 60); do
+      /usr/local/bin/kubectl get node cmc-k3s >/dev/null 2>&1 && break
+      echo "waiting for node registration ($${i}/60)"
+      sleep 5
+    done
+
     /usr/local/bin/kubectl wait --for=condition=Ready node/cmc-k3s --timeout=300s
     /usr/local/bin/kubectl get nodes -o wide
     touch /var/lib/cloud/cmc-bootstrap-complete
