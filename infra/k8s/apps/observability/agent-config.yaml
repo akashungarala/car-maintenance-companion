@@ -21,6 +21,16 @@ receivers:
         enabled: true
       container.cpu.usage:
         enabled: true
+      # Off explicitly. Enabling the replacements does not disable these, so
+      # leaving them on means the agent keeps building metrics the allowlist
+      # then throws away -- and keeps logging deprecation warnings that would
+      # train us to ignore its warnings.
+      k8s.pod.cpu.utilization:
+        enabled: false
+      k8s.node.cpu.utilization:
+        enabled: false
+      container.cpu.utilization:
+        enabled: false
 
   # Pod phase and restart counts. This is the part that would otherwise
   # require kube-state-metrics as a third component (ADR-0013).
