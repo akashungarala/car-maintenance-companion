@@ -53,6 +53,14 @@ RUN rm -rf /usr/local/lib/python3.13/site-packages/pip \
     /usr/local/lib/python3.13/site-packages/pip-*.dist-info \
     /usr/local/bin/pip /usr/local/bin/pip3 /usr/local/bin/pip3.13
 
+# Migrations are not part of the installed wheel — hatchling packages src/app
+# only — so they are copied in explicitly. The migration Job runs from this
+# image, which is what guarantees the migrations applied are exactly the ones
+# that shipped with the code being deployed.
+WORKDIR /app
+COPY --chown=root:root apps/api/alembic.ini /app/alembic.ini
+COPY --chown=root:root apps/api/migrations /app/migrations
+
 USER 10001
 
 EXPOSE 8000

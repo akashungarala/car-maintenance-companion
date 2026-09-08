@@ -1,0 +1,29 @@
+# The database itself. Wave 0: after the operator exists, before the API that
+# depends on it.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: database
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '0'
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/akashungarala/car-maintenance-companion.git
+    targetRevision: main
+    path: infra/k8s/apps/database
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cmc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 15s
+        factor: 2

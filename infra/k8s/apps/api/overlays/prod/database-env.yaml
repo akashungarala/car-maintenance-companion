@@ -1,0 +1,16 @@
+# Point the API at the database CloudNativePG generated credentials for.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: api
+spec:
+  template:
+    spec:
+      containers:
+        - name: api
+          env:
+            - name: CMC_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cmc-db-app
+                  key: uri
