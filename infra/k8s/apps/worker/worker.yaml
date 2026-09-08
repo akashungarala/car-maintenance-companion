@@ -1,0 +1,121 @@
+# The ARQ worker. Separate from the API because its failure modes and scaling
+# curve differ (ADR-0005) — long jobs must never occupy a request-handling
+# process.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: worker
+  labels:
+    app.kubernetes.io/name: worker
+    app.kubernetes.io/part-of: car-maintenance-companion
+spec:
+  replicas: 1
+  strategy:
+    # Recreate: with max_jobs=1 there is nothing to gain from overlapping
+    # workers on a 2-CPU node, and a rolling update would briefly double the
+    # consumers competing for the same queue.
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: worker
+        app.kubernetes.io/part-of: car-maintenance-companion
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: worker
+          image: ghcr.io/akashungarala/car-maintenance-companion/api:latest
+          command: ['arq']
+          args: ['app.worker.WorkerSettings']
+          env:
+            - name: CMC_ENVIRONMENT
+              value: prod
+            - name: CMC_LOG_FORMAT
+              value: json
+            - name: CMC_REDIS_URL
+              value: redis://redis.cmc.svc.cluster.local:6379/0
+            - name: CMC_DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: cmc-db-app
+                  key: uri
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          resources:
+            requests:
+              cpu: 50m
+              memory: 96Mi
+            limits:
+              memory: 256Mi
+          # No HTTP server here, so no httpGet probe. A liveness probe on the
+          # process would need an endpoint the worker does not have; ARQ exits
+          # non-zero on a fatal error and Kubernetes restarts it, which is the
+          # behaviour wanted. Queue depth in F8 is what detects a wedged worker.
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+---
+# Enqueues the heartbeat. In Phase 0 this proves the path; from E5 it is what
+# triggers the nightly projection recompute and digest fan-out.
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: heartbeat
+spec:
+  schedule: '*/15 * * * *'
+  # Forbid: if a run is somehow still going, skipping is right — the enqueue is
+  # idempotent by job id anyway, so a concurrent run would be a no-op with
+  # extra noise.
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  startingDeadlineSeconds: 120
+  jobTemplate:
+    spec:
+      backoffLimit: 2
+      template:
+        spec:
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            runAsGroup: 10001
+            seccompProfile:
+              type: RuntimeDefault
+          containers:
+            - name: enqueue
+              image: ghcr.io/akashungarala/car-maintenance-companion/api:latest
+              command: ['python']
+              args: ['-m', 'app.cli', 'enqueue']
+              env:
+                - name: CMC_ENVIRONMENT
+                  value: prod
+                - name: CMC_LOG_FORMAT
+                  value: json
+                - name: CMC_REDIS_URL
+                  value: redis://redis.cmc.svc.cluster.local:6379/0
+              securityContext:
+                allowPrivilegeEscalation: false
+                readOnlyRootFilesystem: true
+                capabilities:
+                  drop: [ALL]
+              resources:
+                requests:
+                  cpu: 25m
+                  memory: 64Mi
+                limits:
+                  memory: 128Mi

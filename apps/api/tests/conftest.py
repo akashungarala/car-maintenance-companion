@@ -3,6 +3,8 @@ from collections.abc import AsyncIterator, Iterator
 import pytest
 from httpx import ASGITransport, AsyncClient
 from testcontainers.community.postgres import PostgresContainer
+from testcontainers.core.container import DockerContainer
+from testcontainers.core.wait_strategies import LogMessageWaitStrategy
 
 from app.health import ReadinessRegistry
 from app.main import create_app
@@ -41,3 +43,19 @@ def postgres_url() -> Iterator[str]:
     """
     with PostgresContainer("postgres:17-alpine", driver="asyncpg") as pg:
         yield pg.get_connection_url()
+
+
+@pytest.fixture(scope="session")
+def redis_url() -> Iterator[str]:
+    """Real Redis, one container per session.
+
+    Same reasoning as the database: fakeredis diverges from the real server in
+    exactly the places a queue depends on — blocking pops, expiry semantics and
+    script atomicity.
+    """
+    container = DockerContainer("redis:7-alpine").with_exposed_ports(6379)
+    container.waiting_for(LogMessageWaitStrategy("Ready to accept connections"))
+    with container:
+        host = container.get_container_host_ip()
+        port = container.get_exposed_port(6379)
+        yield f"redis://{host}:{port}"

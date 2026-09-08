@@ -70,3 +70,13 @@ def test_an_explicit_async_url_is_left_alone(monkeypatch: pytest.MonkeyPatch) ->
     monkeypatch.setenv("CMC_DATABASE_URL", "postgresql+asyncpg://u:p@host/db")
 
     assert Settings().database_url == "postgresql+asyncpg://u:p@host/db"
+
+
+def test_redis_url_is_unset_by_default() -> None:
+    assert Settings().redis_url is None
+
+
+def test_redis_url_reads_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CMC_REDIS_URL", "redis://cmc-redis:6379/0")
+
+    assert Settings().redis_url == "redis://cmc-redis:6379/0"
