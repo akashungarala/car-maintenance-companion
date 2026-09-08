@@ -26,6 +26,8 @@ coverage/
 # Environment & secrets — NEVER commit these
 .env
 .env.*
+.secrets.env
+*.secrets.env
 !.env.example
 *.pem
 *.key

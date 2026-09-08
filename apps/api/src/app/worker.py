@@ -15,6 +15,7 @@ from app.logging import configure_logging
 from app.queue import build_redis_settings
 from app.settings import Settings
 from app.tasks import heartbeat, with_dead_letter
+from app.telemetry import configure_tracing, instrument
 
 logger = structlog.get_logger()
 
@@ -38,6 +39,8 @@ def _redis_settings() -> RedisSettings:
 async def startup(ctx: dict[str, Any]) -> None:
     settings = Settings()
     configure_logging(settings)
+    configure_tracing(settings)
+    instrument()
     if not settings.redis_url:
         raise RuntimeError(
             "CMC_REDIS_URL is not set. The worker would connect to localhost and "

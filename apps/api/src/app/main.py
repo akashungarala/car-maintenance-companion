@@ -8,6 +8,7 @@ from app.database import Database
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
 from app.settings import Settings
+from app.telemetry import configure_tracing, instrument
 
 logger = structlog.get_logger()
 
@@ -22,6 +23,7 @@ def create_app(
         timeout_seconds=settings.readiness_timeout_seconds
     )
     configure_logging(settings)
+    configure_tracing(settings)
 
     app = FastAPI(
         title="Car Maintenance Companion API",
@@ -45,6 +47,10 @@ def create_app(
 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
+
+    # After the routes exist, so instrumentation sees them; excluded_urls keeps
+    # the probes out of traces.
+    instrument(app, engine=getattr(app.state, "database", None) and app.state.database._engine)
 
     logger.info(
         "application_started",
