@@ -21,3 +21,4 @@ Never edit a decision's substance after it is accepted; the point is the audit t
 | [0008](0008-argocd-pull-based-gitops.md)            | Argo CD pull-based GitOps                                 | Accepted |
 | [0009](0009-magic-link-authentication.md)           | Magic-link authentication, no passwords                   | Accepted |
 | [0010](0010-weekly-digest-email.md)                 | Weekly digest email, not per-item reminders               | Accepted |
+| [0011](0011-protected-main-including-admins.md)     | `main` is protected, including for administrators         | Accepted |
