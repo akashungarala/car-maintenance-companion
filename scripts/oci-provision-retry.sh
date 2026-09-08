@@ -24,7 +24,13 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
   for ad in $(seq 0 $((AD_COUNT - 1))); do
     echo "=== round $round/$MAX_ROUNDS · availability domain index $ad · $(date -u +%H:%M:%SZ) ==="
 
-    if tofu apply -auto-approve -var "availability_domain_index=$ad"; then
+    # Capture once. Running apply twice — once for the exit code and again to
+    # read the error — would double every provisioning attempt.
+    output=$(tofu apply -auto-approve -var "availability_domain_index=$ad" 2>&1)
+    rc=$?
+    echo "$output" | tail -n 5
+
+    if [ $rc -eq 0 ]; then
       echo "=== provisioned in AD index $ad ==="
       tofu output
       exit 0
@@ -32,8 +38,7 @@ for round in $(seq 1 "$MAX_ROUNDS"); do
 
     # Any other failure is a real problem — a bad variable, expired
     # credentials, a syntax error — and retrying just hides it.
-    if ! tofu apply -auto-approve -var "availability_domain_index=$ad" 2>&1 \
-        | grep -qiE "out of host capacity|out of capacity"; then
+    if ! echo "$output" | grep -qiE "out of host capacity|out of capacity"; then
       echo "!!! failed for a reason other than capacity. Stopping so you can read it." >&2
       exit 1
     fi
