@@ -46,6 +46,11 @@ class Settings(BaseSettings):
     # probes still hit /health and /ready on the pod unprefixed.
     root_path: str = ""
 
+    # Unset in Phase 0 and in most tests: the service ran without a database at
+    # all, and must keep being able to. When set, a readiness check is
+    # registered for it — but never a liveness check.
+    database_url: str | None = None
+
     @model_validator(mode="after")
     def _json_logs_in_production(self) -> Self:
         """Default to JSON logs in production unless explicitly overridden.

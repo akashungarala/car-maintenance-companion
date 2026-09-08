@@ -30,6 +30,10 @@ ignore = [
 
 [tool.ruff.lint.per-file-ignores]
 "**/tests/**" = ["S105", "S106"]  # hardcoded test credentials are fine
+# Alembic's template always emits `op` and `sa`; they are used by any migration
+# that actually does something, and stripping them from generated files just
+# means adding them back by hand on the next one.
+"**/migrations/versions/*.py" = ["F401"]
 
 [tool.mypy]
 python_version = "3.13"
@@ -53,7 +57,7 @@ markers = [
 [tool.coverage.run]
 source = ["apps/api/src/app"]
 branch = true
-omit = ["*/__main__.py"]
+omit = ["*/__main__.py", "*/migrations/*"]
 
 [tool.coverage.report]
 show_missing = true
@@ -76,4 +80,6 @@ dev = [
     "ruff>=0.9",
     "pre-commit>=4.0",
     "httpx>=0.28",
+    # Real Postgres in tests. Never SQLite — see docs/engineering/testing.md.
+    "testcontainers[postgres]>=4.9",
 ]

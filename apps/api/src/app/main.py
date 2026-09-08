@@ -4,6 +4,7 @@ import structlog
 from fastapi import FastAPI
 
 from app import health
+from app.database import Database
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
 from app.settings import Settings
@@ -33,6 +34,14 @@ def create_app(
     )
     app.state.settings = settings
     app.state.readiness = readiness
+
+    # Registered only when a database is configured, and only as *readiness*.
+    # Liveness must never depend on it: a database blip would otherwise restart
+    # every pod, turning a recoverable outage into a crash loop.
+    if settings.database_url:
+        database = Database(settings.database_url)
+        app.state.database = database
+        readiness.register("database", database.is_healthy)
 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
