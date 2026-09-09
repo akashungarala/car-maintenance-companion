@@ -118,12 +118,18 @@ variable "admin_cidr" {
 
 variable "http_ingress_cidrs" {
   description = <<-EOT
-    CIDRs permitted to reach 80/443. Open by default because Cloudflare's
-    proxy fronts the origin; F9 narrows this to Cloudflare's published ranges
-    so the origin cannot be reached directly.
+    CIDRs permitted to reach 80/443. Null means "whatever Cloudflare currently
+    publishes", fetched at apply time — see cloudflare_origin.tf. Set it
+    explicitly only to break glass during an incident where Cloudflare itself
+    is the problem, and set it back afterwards.
   EOT
   type        = list(string)
-  default     = ["0.0.0.0/0"]
+  default     = null
+
+  validation {
+    condition     = var.http_ingress_cidrs == null || length(var.http_ingress_cidrs) > 0
+    error_message = "Use null for the Cloudflare ranges. An empty list removes every 80/443 rule and takes the origin offline."
+  }
 }
 
 # ---------------------------------------------------------------------------

@@ -6,6 +6,10 @@ terraform {
       source  = "oracle/oci"
       version = "~> 9.0"
     }
+    http = {
+      source  = "hashicorp/http"
+      version = "~> 3.5"
+    }
     cloudflare = {
       source  = "cloudflare/cloudflare"
       version = "~> 5.24"
