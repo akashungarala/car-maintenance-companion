@@ -12,9 +12,13 @@ from opentelemetry import metrics, trace
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.propagate import extract, inject
-from opentelemetry.sdk.metrics import Histogram, MeterProvider
+from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.metrics.export import MetricReader, PeriodicExportingMetricReader
-from opentelemetry.sdk.metrics.view import ExplicitBucketHistogramAggregation, View
+from opentelemetry.sdk.metrics.view import (
+    DropAggregation,
+    ExplicitBucketHistogramAggregation,
+    View,
+)
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
@@ -25,12 +29,16 @@ from app.settings import Settings
 _configured = False
 _metrics_configured = False
 
-# Every bucket is a series, multiplied by every label combination. The SDK
-# default is fourteen boundaries; these six cover what we actually alert on --
-# p95 above 1.5s -- at well under half the series cost. 1.5 is a boundary on
-# purpose: without it, the alert threshold falls inside a bucket and p95 has to
-# be interpolated across it.
-HISTOGRAM_BUCKETS = (0.05, 0.1, 0.25, 0.5, 1.5, 5.0)
+# MILLISECONDS. The instrument records http.server.duration in milliseconds and
+# Grafana receives it as http_server_duration_milliseconds, so seconds-shaped
+# boundaries would cap the histogram at 5ms while measuring requests that take
+# tens to hundreds -- everything piles into +Inf, p95 is unusable, and the
+# "p95 > 1.5s" alert can never fire correctly.
+#
+# Every bucket is a series per label combination. Six, against the SDK default
+# of fourteen. 1500 is a boundary on purpose: it is the alert threshold, and
+# without it p95 must be interpolated across whichever bucket contains it.
+HISTOGRAM_BUCKETS = (5.0, 25.0, 100.0, 250.0, 1500.0, 5000.0)
 
 
 def _resource(settings: Settings) -> Resource:
@@ -54,9 +62,16 @@ def build_meter_provider(settings: Settings, *, reader: MetricReader) -> MeterPr
         metric_readers=[reader],
         views=[
             View(
-                instrument_type=Histogram,
+                instrument_name="http.server.duration",
                 aggregation=ExplicitBucketHistogramAggregation(HISTOGRAM_BUCKETS),
-            )
+            ),
+            # Dropped, not re-bucketed. We never ask a question that
+            # response-size percentiles answer, and each histogram costs seven
+            # series per label combination against a 10,000 cap. A single
+            # instrument_type=Histogram view would also have applied the
+            # latency boundaries to these, bucketing bytes by milliseconds.
+            View(instrument_name="http.server.response.size", aggregation=DropAggregation()),
+            View(instrument_name="http.server.request.size", aggregation=DropAggregation()),
         ],
     )
 
