@@ -84,3 +84,23 @@ async def test_enqueue_flushes_spans_before_exiting(
     await cli.enqueue_main()
 
     assert flushed, "spans were not flushed; a short-lived process loses them"
+
+
+async def test_enqueue_flushes_metrics_before_exiting(
+    fake_pool: FakePool, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Queue depth is recorded here and nowhere else.
+
+    The periodic metric reader exports on a 30-second timer that this process
+    never reaches, so without an explicit flush the gauge is recorded correctly
+    and then discarded -- and the queue-depth alert has no data at exactly the
+    moment the queue is backing up.
+    """
+    flushed: list[int] = []
+    monkeypatch.setattr(cli, "flush_metrics", lambda: flushed.append(1))
+    monkeypatch.setattr(cli, "flush_tracing", lambda: None)
+    monkeypatch.setenv("CMC_OTLP_ENDPOINT", "http://collector:4318")
+
+    await cli.enqueue_main()
+
+    assert flushed, "metrics were not flushed; the queue depth gauge is lost"

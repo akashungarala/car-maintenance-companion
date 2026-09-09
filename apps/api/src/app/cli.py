@@ -10,10 +10,16 @@ import structlog
 from arq import create_pool
 from opentelemetry import trace
 
+from app import metrics as job_metrics
 from app.logging import configure_logging
 from app.queue import build_redis_settings, enqueue_heartbeat, queue_depth
 from app.settings import Settings
-from app.telemetry import configure_tracing, flush_tracing
+from app.telemetry import (
+    configure_metrics,
+    configure_tracing,
+    flush_metrics,
+    flush_tracing,
+)
 
 logger = structlog.get_logger()
 
@@ -34,6 +40,7 @@ async def enqueue_main() -> int:
     # out empty and the worker's execution starts an unrelated root trace --
     # exactly what production showed as `heartbeat(trace_carrier={})`.
     configure_tracing(settings)
+    configure_metrics(settings)
     tracer = trace.get_tracer("app.cli")
 
     pool = await create_pool(build_redis_settings(settings.redis_url))
@@ -41,6 +48,10 @@ async def enqueue_main() -> int:
         with tracer.start_as_current_span("heartbeat.enqueue"):
             job = await enqueue_heartbeat(pool)
             depth = await queue_depth(pool)
+            # Reported from here rather than the worker on purpose: the CronJob
+            # keeps running when the worker is down, which is exactly when a
+            # rising queue depth is the thing worth knowing.
+            job_metrics.record_queue_depth(depth)
             logger.info(
                 "heartbeat_enqueued",
                 job_id=getattr(job, "job_id", None),
@@ -54,6 +65,7 @@ async def enqueue_main() -> int:
         await pool.aclose()
         # This process is about to exit; anything still buffered is lost.
         flush_tracing()
+        flush_metrics()
 
 
 def main() -> None:
