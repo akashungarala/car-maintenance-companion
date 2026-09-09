@@ -21,6 +21,13 @@ receivers:
         enabled: true
       container.cpu.usage:
         enabled: true
+      # Off by default, and the only metrics that answer "is this container
+      # near the limit that will get it throttled or OOM-killed". Raw usage
+      # cannot answer that without knowing the limit.
+      k8s.container.cpu_limit_utilization:
+        enabled: true
+      k8s.container.memory_limit_utilization:
+        enabled: true
       # Off explicitly. Enabling the replacements does not disable these, so
       # leaving them on means the agent keeps building metrics the allowlist
       # then throws away -- and keeps logging deprecation warnings that would
