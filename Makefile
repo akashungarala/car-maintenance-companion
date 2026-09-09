@@ -50,3 +50,10 @@ clean: ## Remove build and cache artifacts
 .PHONY: series-check
 series-check:  ## Fail if active series approach the Grafana free-tier cap
 	set -a; . infra/k8s/.secrets.env; set +a; uv run python scripts/grafana/series_check.py
+
+.PHONY: openapi
+openapi:  ## Regenerate the API contract types from the FastAPI app
+	@mkdir -p .tmp
+	uv run python scripts/generate-openapi.py .tmp/openapi.json
+	pnpm --filter @cmc/api-types exec openapi-typescript ../../.tmp/openapi.json -o schema.d.ts
+	pnpm exec prettier --write packages/api-types/schema.d.ts
