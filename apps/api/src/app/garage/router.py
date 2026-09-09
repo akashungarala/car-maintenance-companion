@@ -6,6 +6,7 @@ from datetime import UTC, date, datetime
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.garage.completion import CompletionService
 from app.garage.models import MAX_YEAR, MIN_YEAR
 from app.garage.plan import PlanService
 from app.garage.repository import VehicleRepository
@@ -134,3 +135,72 @@ async def get_plan(vehicle_id: uuid.UUID, request: Request, user: CurrentUser) -
             for e in entries
         ],
     )
+
+
+class CompleteRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    #: The one number we ask for, because it is the one they are standing next
+    #: to. Not the cost, not the garage, not a note -- every extra field is a
+    #: reason to close the sheet.
+    odometer: int = Field(ge=0)
+    #: Defaults to today at the caller's discretion; the API requires it
+    #: explicitly so "when did you do this" is answerable for a service being
+    #: recorded a week late.
+    performed_at: date
+
+
+class ServiceRecordOut(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: uuid.UUID
+    name: str
+    performed_at: date
+    odometer: int
+
+
+@router.post(
+    "/{vehicle_id}/items/{item_id}/complete",
+    status_code=status.HTTP_201_CREATED,
+    summary="Mark maintenance done",
+)
+async def complete_item(
+    vehicle_id: uuid.UUID,
+    item_id: uuid.UUID,
+    payload: CompleteRequest,
+    request: Request,
+    user: CurrentUser,
+) -> ServiceRecordOut:
+    async with request.app.state.database.session() as session:
+        vehicle = await VehicleRepository(session, user.id).get(vehicle_id)
+        if vehicle is None:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+        try:
+            record = await CompletionService(session).complete(
+                vehicle=vehicle,
+                item_id=item_id,
+                odometer=payload.odometer,
+                performed_at=payload.performed_at,
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail="Item not found") from exc
+        except ValueError as exc:
+            # 422 with the reason: this one is worth telling the user about,
+            # because it is almost always a typo they can see and fix.
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        return ServiceRecordOut.model_validate(record)
+
+
+@router.get("/{vehicle_id}/history", summary="What has been done to this vehicle")
+async def get_history(
+    vehicle_id: uuid.UUID, request: Request, user: CurrentUser
+) -> list[ServiceRecordOut]:
+    async with request.app.state.database.session() as session:
+        vehicle = await VehicleRepository(session, user.id).get(vehicle_id)
+        if vehicle is None:
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+        records = await CompletionService(session).history(vehicle.id)
+        return [ServiceRecordOut.model_validate(r) for r in records]
