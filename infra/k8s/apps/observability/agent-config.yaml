@@ -57,6 +57,12 @@ receivers:
         parse_to: attributes
         on_error: send
 
+extensions:
+  # Surfaces collector health to Kubernetes, so a receiver that cannot start is
+  # a failing probe rather than a silent restart loop.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 processors:
   # First in the pipeline: shed load rather than be OOM-killed. A killed
   # collector loses everything it has buffered.
@@ -119,6 +125,7 @@ exporters:
       queue_size: 500
 
 service:
+  extensions: [health_check]
   telemetry:
     logs:
       level: info

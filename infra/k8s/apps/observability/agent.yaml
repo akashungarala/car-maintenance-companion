@@ -26,6 +26,14 @@ rules:
   - apiGroups: [batch]
     resources: [jobs, cronjobs]
     verbs: [get, list, watch]
+  # k8s_cluster watches HorizontalPodAutoscalers unconditionally. Without this
+  # its informer cache never syncs, the collector gives up after ten minutes
+  # and exits 0, and Kubernetes restarts it -- forever. Because the exit is
+  # clean the pod reports 1/1 Running throughout, so the receiver produced no
+  # metrics at all for 17 hours while looking perfectly healthy.
+  - apiGroups: [autoscaling]
+    resources: [horizontalpodautoscalers]
+    verbs: [get, list, watch]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding
@@ -66,6 +74,23 @@ spec:
           ports:
             - name: metrics
               containerPort: 8888
+            - name: health
+              containerPort: 13133
+          # Without these the only failure this container can report is a
+          # crash. A collector that exits 0 in a loop, or starts with a
+          # receiver that never syncs, otherwise reads as healthy.
+          livenessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /
+              port: health
+            initialDelaySeconds: 5
+            periodSeconds: 10
           resources:
             requests:
               cpu: 50m

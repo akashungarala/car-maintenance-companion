@@ -6,6 +6,12 @@ receivers:
       grpc:
         endpoint: 0.0.0.0:4317
 
+extensions:
+  # Kubernetes has no other way to tell a working collector from one that
+  # started, failed to build a pipeline, and is quietly doing nothing.
+  health_check:
+    endpoint: 0.0.0.0:13133
+
 processors:
   # ARQ polls Redis roughly twice a second forever, and the Redis
   # instrumentation turns every poll into a span: 168 spans/minute measured at
@@ -70,6 +76,7 @@ exporters:
       queue_size: 1000
 
 service:
+  extensions: [health_check]
   telemetry:
     logs:
       level: info
