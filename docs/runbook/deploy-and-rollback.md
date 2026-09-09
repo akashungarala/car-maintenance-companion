@@ -156,6 +156,30 @@ CloudNativePG 1.30 warns that native Barman Cloud backup and recovery is **depre
 deliberately upgraded — but the migration must happen before that bump, and the restore drill is how
 it gets verified.
 
+## Rollback drill
+
+Executed, not described. `./scripts/rollback-drill.sh` reverts the tag bump on
+the `deploy` branch, waits for the API to come back healthy on the previous
+image, then rolls forward again.
+
+Measured on 2026-09-09:
+
+| Direction                  | Time to healthy |
+| -------------------------- | --------------- |
+| Rollback to previous image | **18s**         |
+| Roll forward again         | **17s**         |
+
+Both include triggering the Argo sync, which is what an operator would do
+rather than waiting for the poll interval. Left alone, Argo picks the change up
+within three minutes.
+
+Only the image tag is reverted. Manifests stay as they are, because migrations
+are expand/contract: the previous image runs against the current schema, and
+rolling code back must never require rolling schema back.
+
+Run it after any change to the deploy pipeline. A rollback path that has never
+been exercised is a plan, not a capability.
+
 ## Testing an alert without leaving a ghost
 
 To prove an alert path end to end, create a temporary rule that fires, then **clear its condition
