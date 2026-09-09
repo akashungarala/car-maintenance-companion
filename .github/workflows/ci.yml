@@ -336,6 +336,31 @@ jobs:
           grep -q "$EXPECT" /tmp/body
           echo "--- must run as non-root ---"
           test "$(docker exec app id -u)" = "10001"
+
+          # Every module must import inside the *runtime* image. Development
+          # installs test dependencies the image does not have, so a module
+          # importing one of them passes every test and then fails in production
+          # the first time its code path runs. That is exactly how httpx --
+          # needed only by the email sender -- reached production missing.
+          if [ "${{ matrix.service }}" = "api" ]; then
+            echo "--- every module imports in the runtime image ---"
+            docker exec app python -c "
+          import importlib, pkgutil, sys
+          import app
+          failed = []
+          for module in pkgutil.walk_packages(app.__path__, 'app.'):
+              try:
+                  importlib.import_module(module.name)
+              except Exception as exc:
+                  failed.append(f'{module.name}: {type(exc).__name__}: {exc}')
+          if failed:
+              print('modules that do not import in the runtime image:')
+              for line in failed:
+                  print('  ' + line)
+              sys.exit(1)
+          print('all modules import')
+          "
+          fi
           docker rm -f app
 
   infra:
