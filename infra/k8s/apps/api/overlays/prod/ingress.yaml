@@ -6,6 +6,9 @@ metadata:
     # Traefik ships with k3s and is the ingress (see the plan). Only the
     # websecure entrypoint: HTTP is redirected at Cloudflare's edge.
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # namespace-name@kubernetescrd is Traefik's provider syntax; a bare name
+    # silently matches nothing and the headers just never appear.
+    traefik.ingress.kubernetes.io/router.middlewares: cmc-security-headers@kubernetescrd
 spec:
   rules:
     - host: garage-api.akashungarala.com

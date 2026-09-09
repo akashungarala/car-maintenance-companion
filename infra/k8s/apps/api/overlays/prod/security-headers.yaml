@@ -1,0 +1,46 @@
+# Response headers for the API, applied at the ingress rather than in the
+# application. Traefik sees every response including the ones FastAPI never
+# generates -- 502s from a dead backend, 404s from an unmatched router -- and
+# those are exactly the responses an attacker probes for.
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: security-headers
+spec:
+  headers:
+    # This is an API. Nothing it returns should ever be interpreted as markup,
+    # and nothing it returns should ever be framed.
+    contentTypeNosniff: true
+    frameDeny: true
+    browserXssFilter: false # retired in modern browsers; CSP replaces it
+    referrerPolicy: no-referrer
+    # HSTS on this host only. includeSubDomains is deliberately absent: it
+    # would apply to every subdomain of akashungarala.com, including hosts this
+    # project does not own and cannot guarantee serve HTTPS. preload is absent
+    # for the same reason -- it is effectively irreversible.
+    stsSeconds: 31536000
+    stsIncludeSubdomains: false
+    stsPreload: false
+    forceSTSHeader: true
+    customResponseHeaders:
+      # Swagger UI loads its bundle and stylesheet from jsdelivr and its icon
+      # from fastapi.tiangolo.com, so a bare `default-src 'none'` would leave
+      # /docs a blank page -- security theatre that breaks the one page a human
+      # actually opens. Everything not needed by those three requests is
+      # denied, and there is no 'unsafe-eval' anywhere.
+      Content-Security-Policy: >-
+        default-src 'none';
+        script-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+        style-src 'self' https://cdn.jsdelivr.net 'unsafe-inline';
+        img-src 'self' data: https://fastapi.tiangolo.com;
+        connect-src 'self';
+        font-src 'self';
+        base-uri 'none';
+        form-action 'none';
+        frame-ancestors 'none'
+      Permissions-Policy: accelerometer=(), camera=(), geolocation=(), gyroscope=(),
+        magnetometer=(), microphone=(), payment=(), usb=()
+      # Traefik advertises itself by default. Nothing needs to know which
+      # reverse proxy this is, or which version of it has a known CVE.
+      Server: ''
+      X-Powered-By: ''
