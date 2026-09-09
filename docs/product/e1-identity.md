@@ -70,3 +70,60 @@ and a resend button is a second rate-limiting surface to reason about for very l
 Delivery needs a Resend API key and a verified sending domain. Until both exist the job runs and
 records that it could not send, which keeps the request path complete and testable — but no email
 arrives, so E1-001 is not _done_ until they do.
+
+---
+
+## E1-002 — Exchange the link for a session
+
+**As** someone who clicked the link in my email
+**I want** to arrive already signed in
+**So that** proving who I am costs me nothing beyond opening my inbox.
+
+### The decision that shapes this story: link scanners prefetch
+
+Gmail, Outlook and corporate mail gateways fetch the URLs in an email to check them for malware.
+If clicking the link is what consumes the token, the scanner consumes it first — and the person
+opens their email to find a link that has already been used, seconds after it was sent. This is a
+well-known way for magic-link implementations to appear intermittently broken.
+
+**The link is therefore a `GET` that consumes nothing.** It lands on a page that immediately
+exchanges the token with a `POST`. Scanners issue `GET`s, so nothing is spent by being scanned,
+and a real visitor needs no extra click — the exchange happens while the page is still showing a
+spinner.
+
+The alternative, a "click here to sign in" confirmation page, defeats scanners just as well and
+costs every user an extra deliberate click on every sign-in. That trade is not worth it for a
+product whose entire premise is asking little of the user.
+
+### Product decisions
+
+**The session is a row, not a signed token.** It can be revoked (ADR-0014). A stateless token
+remains valid until it expires no matter what happens in between, which means a sign-out that does
+not sign you out, and no way to end a session from a device you no longer have.
+
+**Sessions last 30 days, sliding.** This is a product people use when something needs doing, which
+may be six weeks apart. A session that expires between visits turns every visit into a sign-in,
+which is the thing the whole epic exists to avoid.
+
+**Every failure looks the same.** Expired, already used, never existed, tampered with — one
+message. Distinguishing them tells an attacker which tokens once existed.
+
+**The account is created here**, not when the link was requested, because this is the first moment
+control of the address is proven.
+
+### Acceptance criteria
+
+- [ ] Given a valid, unused link, when opened, then a session cookie is set and the user lands in
+      their garage
+- [ ] Given the same link a second time, then sign-in fails with the generic message
+- [ ] Given a link older than 15 minutes, then sign-in fails with the generic message
+- [ ] Given any failure, then the message is identical regardless of cause
+- [ ] The session cookie is `HttpOnly`, `Secure` and `SameSite=Lax`
+- [ ] The session token is stored hashed, never in plaintext
+- [ ] A `GET` of the link URL alone consumes nothing — a prefetching scanner does not spend it
+- [ ] Signing in creates exactly one user for an address, no matter how many links were requested
+
+### Out of scope
+
+Sign-out and protected routes (E1-003). Session revocation from other devices, which needs a UI
+nobody has asked for yet.
