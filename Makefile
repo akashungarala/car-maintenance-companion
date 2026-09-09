@@ -46,3 +46,7 @@ clean: ## Remove build and cache artifacts
 	find . -type d \( -name __pycache__ -o -name .pytest_cache -o -name .ruff_cache \
 		-o -name .mypy_cache -o -name .next \) -prune -exec rm -rf {} +
 	rm -rf coverage.xml .coverage htmlcov
+
+.PHONY: series-check
+series-check:  ## Fail if active series approach the Grafana free-tier cap
+	set -a; . infra/k8s/.secrets.env; set +a; uv run python scripts/grafana/series_check.py
