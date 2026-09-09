@@ -38,6 +38,11 @@ MAGIC_LINKS_REQUESTED = _meter.create_counter(
     description="Sign-in links requested",
 )
 
+EMAILS_SENT = _meter.create_counter(
+    "email.sent",
+    description="Emails handed to the provider",
+)
+
 RATE_LIMIT_REJECTED = _meter.create_counter(
     "rate_limit.rejected",
     description="Requests refused by the rate limiter",
@@ -111,3 +116,13 @@ def record_magic_link_requested() -> None:
     budget sign-ins are consuming.
     """
     MAGIC_LINKS_REQUESTED.add(1)
+
+
+def record_email_sent(kind: str) -> None:
+    """Count an email against the daily allowance.
+
+    Labelled by kind -- "magic_link", later "digest" -- and by nothing else.
+    The free tier allows 100 a day shared between them, so the question this
+    answers is which one is consuming the budget, not who received what.
+    """
+    EMAILS_SENT.add(1, {"kind": kind})

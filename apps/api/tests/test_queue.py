@@ -137,7 +137,11 @@ def test_worker_module_imports_without_redis_configured() -> None:
     from app.worker import WorkerSettings
 
     assert WorkerSettings.max_tries == 3
-    assert len(WorkerSettings.functions) == 1
+    # By name, not by count. ARQ resolves jobs by __qualname__, so the names
+    # are the contract with anything that enqueues; the number of jobs is
+    # incidental and grows with every story.
+    registered = {f.__qualname__ for f in WorkerSettings.functions}
+    assert {"heartbeat", "send_magic_link_email"} <= registered
 
 
 async def test_worker_startup_refuses_when_redis_is_unconfigured(
