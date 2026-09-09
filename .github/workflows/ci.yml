@@ -542,6 +542,7 @@ jobs:
           overlays=(
             infra/k8s/apps/api/overlays/prod/kustomization.yaml
             infra/k8s/apps/worker/kustomization.yaml
+            infra/k8s/apps/web/kustomization.yaml
           )
 
           # Only pin a new tag when images were actually built for this SHA.

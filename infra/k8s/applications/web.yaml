@@ -1,0 +1,23 @@
+# Wave 1, with the API and worker: it is an application, not platform.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: web
+  namespace: argocd
+  annotations:
+    argocd.argoproj.io/sync-wave: '1'
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/akashungarala/car-maintenance-companion.git
+    # The deploy branch, like the API and worker: CI pins an image tag there
+    # after publishing, so all three run the same build.
+    targetRevision: deploy
+    path: infra/k8s/apps/web
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cmc
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
