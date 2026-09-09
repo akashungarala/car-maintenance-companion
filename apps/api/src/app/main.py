@@ -11,6 +11,8 @@ from app.cache import RedisHealth, build_client
 from app.database import Database
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
+from app.rate_limit import RateLimiter
+from app.rate_limit_middleware import RateLimitMiddleware
 from app.settings import Settings
 from app.telemetry import configure_metrics, configure_tracing, instrument
 
@@ -72,9 +74,15 @@ def create_app(
     # that cannot reach Redis cannot enqueue work or enforce a rate limit, so
     # it should leave the Service endpoints rather than half-serve requests.
     if settings.redis_url:
-        cache = RedisHealth(build_client(settings.redis_url))
+        client = build_client(settings.redis_url)
+        cache = RedisHealth(client)
         app.state.cache = cache
         readiness.register("redis", cache.is_healthy)
+        # Added before RequestContextMiddleware below, which means Starlette
+        # runs it *after* -- middleware is applied in reverse. That ordering is
+        # deliberate: a refused request should still get a request id and an
+        # access log line, or 429s become invisible in the logs.
+        app.add_middleware(RateLimitMiddleware, limiter=RateLimiter(client), settings=settings)
 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
