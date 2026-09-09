@@ -162,6 +162,21 @@ def rules() -> list[dict[str, Any]]:
             "site down at once -- Cloudflare returns 526 and stops proxying entirely.",
         ),
         _rule(
+            "Email budget nearly spent",
+            "sum(increase(email_sent_total[24h]))",
+            70,
+            op="gt",
+            for_="30m",
+            severity="warn",
+            summary="More than 70 of the 100 daily emails have been sent.",
+            runbook="Resend's free tier allows 100 emails per day, shared between sign-in links "
+            "and the weekly digest. Running out means people cannot sign in -- the failure is "
+            "invisible until someone tries. Check the split by kind on CMC · Async; a spike in "
+            "magic_link with no matching signups suggests someone is enumerating addresses "
+            "through the sign-in form, which the 5/min limit slows but does not stop.",
+            lookback=86400,
+        ),
+        _rule(
             "Queue is backing up",
             "max(queue_depth)",
             100,

@@ -442,6 +442,24 @@ def async_work() -> dict[str, Any]:
                 unit="reqps",
             ),
             _panel(
+                "Emails sent today, by kind",
+                "timeseries",
+                [
+                    {
+                        "expr": "sum by (kind) (increase(email_sent_total[24h]))",
+                        "legendFormat": "{{kind}}",
+                    }
+                ],
+                (24, 6, 0, 12),
+                description="The free tier allows 100 a day, shared between sign-in links and "
+                "the weekly digest. Running out is invisible until someone cannot sign in.",
+                thresholds=[
+                    {"color": "green", "value": None},
+                    {"color": "yellow", "value": 70},
+                    {"color": "red", "value": 95},
+                ],
+            ),
+            _panel(
                 "Job latency percentiles",
                 "timeseries",
                 [
@@ -460,7 +478,7 @@ def async_work() -> dict[str, Any]:
                         "legendFormat": "p50",
                     },
                 ],
-                (24, 8, 0, 12),
+                (24, 8, 0, 18),
                 unit="ms",
             ),
         ],
