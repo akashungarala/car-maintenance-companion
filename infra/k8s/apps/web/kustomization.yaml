@@ -10,4 +10,4 @@ resources:
 # one build.
 images:
   - name: ghcr.io/akashungarala/car-maintenance-companion/web
-    newTag: latest
+    newTag: b82e9836c9f80bd6ef7c609687e08fa7ed78f301
