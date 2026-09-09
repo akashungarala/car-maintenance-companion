@@ -35,7 +35,7 @@ export function CallbackClient({ token }: { token: string | undefined }) {
         });
         if (cancelled) return;
         if (response.ok) {
-          router.replace('/');
+          router.replace('/garage');
           return;
         }
         setFailed(true);

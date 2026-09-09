@@ -13,8 +13,9 @@ test('a valid link signs in and moves on', async ({ page }) => {
 
   await page.goto(`${APP}/auth/callback?token=valid-token`);
 
-  // The destination is the app, not this page: success here is not being seen.
-  await expect(page).toHaveURL(new RegExp(`${APP}/?$`));
+  // The destination is the garage, not this page: success here is not being
+  // seen at all.
+  await expect(page).toHaveURL(new RegExp(`${APP}/garage`));
 });
 
 test('a spent link shows the generic message', async ({ page }) => {
@@ -42,7 +43,9 @@ test('merely loading the page issues no GET that could spend the link', async ({
   });
 
   await page.goto(`${APP}/auth/callback?token=valid-token`);
-  await page.waitForURL(new RegExp(`${APP}/?$`));
+  await page.waitForURL(new RegExp(`${APP}/garage`));
 
+  // Only the exchange is a POST. Nothing this page does on a GET spends the
+  // link, which is what stops a mail scanner consuming it.
   expect(methods).toEqual(['POST']);
 });
