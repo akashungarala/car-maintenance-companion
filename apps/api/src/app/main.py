@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app import health
 from app.cache import RedisHealth, build_client
 from app.database import Database
+from app.garage.router import router as garage_router
 from app.identity.router import router as auth_router
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
@@ -104,6 +105,7 @@ def create_app(
     # both more honest and easier to diagnose.
     if settings.database_url and settings.redis_url:
         app.include_router(auth_router)
+        app.include_router(garage_router)
 
     # After the routes exist, so instrumentation sees them; excluded_urls keeps
     # the probes out of traces.
