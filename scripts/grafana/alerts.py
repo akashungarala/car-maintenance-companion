@@ -148,6 +148,20 @@ def rules() -> list[dict[str, Any]]:
             "never been restored is not a backup.",
         ),
         _rule(
+            "Origin certificate expiring",
+            "min(certmanager_certificate_expiration_timestamp_seconds) - time()",
+            1209600,  # 14 days
+            op="lt",
+            for_="1h",
+            severity="page",
+            summary="The origin TLS certificate expires in under 14 days.",
+            runbook="cert-manager renews at 30 days remaining, so under 14 means renewal has "
+            "been failing for two weeks. kubectl describe certificate -n cmc garage-api-tls, "
+            "then check the DNS-01 solver and the sealed Cloudflare token. This is a page, not "
+            "a warning: the zone is on Full (strict), so an expired certificate takes the whole "
+            "site down at once -- Cloudflare returns 526 and stops proxying entirely.",
+        ),
+        _rule(
             "Queue is backing up",
             "max(queue_depth)",
             100,
