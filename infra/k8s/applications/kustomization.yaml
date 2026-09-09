@@ -6,6 +6,8 @@ namespace: argocd
 resources:
   - sealed-secrets.yaml
   - cloudnative-pg.yaml
+  - cert-manager.yaml
+  - cert-manager-config.yaml
   - database.yaml
   - redis.yaml
   - observability.yaml

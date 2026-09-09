@@ -1,0 +1,8 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  # Pinned, like every remote base here. cert-manager owns certificate renewal;
+  # an unpinned version could change issuance behaviour on an unrelated sync,
+  # and the failure mode is an expired certificate rather than a broken deploy.
+  - https://github.com/cert-manager/cert-manager/releases/download/v1.21.1/cert-manager.yaml
