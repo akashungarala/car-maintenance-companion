@@ -449,10 +449,27 @@ the runbooks.
 
 **Acceptance**
 
-- [ ] Rate limits enforced and observable
-- [ ] No HIGH/CRITICAL vulnerabilities in shipped images
-- [ ] Rollback drill executed and timed, with the procedure written down
-- [ ] Runbooks exist for: deploy, rollback, database restore, incident triage
+- [x] Rate limits enforced and observable — 115 requests against a 100/min budget produced exactly
+      100 × 200 and 15 × 429 with `Retry-After: 45`, probes unaffected and zero pod restarts;
+      `rate_limit_rejected_total{bucket="api"}` visible in Grafana with no caller address as a label
+- [x] No HIGH/CRITICAL vulnerabilities in shipped images — both `api` and `web` scan clean
+      (`Total: 0`). Note the images are arm64-only, so a scan without `--platform linux/arm64`
+      fails to find them rather than passing
+- [x] Rollback drill executed and timed — **18s** to roll back, **17s** to roll forward, scripted in
+      `scripts/rollback-drill.sh` so it is repeatable rather than a one-off anecdote
+- [x] Runbooks exist for deploy, rollback, database restore and incident triage
+
+**Also delivered, beyond the original scope:** Redis added to `/ready` (an instance that could not
+enqueue was still taking traffic); an application lifespan that disposes connections, which never
+existed; security headers applied at Traefik so they cover responses FastAPI never generates;
+80/443 restricted to Cloudflare's published ranges, verified unreachable directly; `pnpm audit` as a
+blocking gate; and retries around both dependency audits, because a network reset and a
+vulnerability previously looked identical.
+
+**Still open:** cert-manager, and with it Cloudflare _Full (strict)_ origin validation. The
+Cloudflare→origin hop is encrypted today but the certificate is not verified, so Cloudflare cannot
+tell our origin from anything else that answers on that address. The origin lock makes that
+substantially harder to exploit; it does not make it verified.
 
 ---
 
