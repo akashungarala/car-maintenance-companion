@@ -72,4 +72,13 @@ describe('VehicleList', () => {
     const headings = screen.getAllByRole('heading', { level: 2 }).map((h) => h.textContent);
     expect(headings).toEqual(['The Civic', '2014 Subaru Outback']);
   });
+  it('links each vehicle to its dashboard', () => {
+    render(<VehicleList vehicles={[civic]} />);
+
+    // The whole card is the target: on a phone that is what the thumb aims at.
+    expect(screen.getByRole('link', { name: /the civic/i })).toHaveAttribute(
+      'href',
+      '/apps/car-maintenance-companion/garage/v1',
+    );
+  });
 });

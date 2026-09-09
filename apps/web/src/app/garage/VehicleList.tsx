@@ -35,12 +35,19 @@ export function VehicleList({ vehicles }: { vehicles: Vehicle[] }) {
     // before reading them out.
     <ul className="divide-y divide-neutral-200 dark:divide-neutral-800">
       {vehicles.map((vehicle) => (
-        <li key={vehicle.id} className="px-4 py-4">
-          <h2 className="text-base font-semibold">{vehicle.display_name}</h2>
-          <p className="text-sm text-neutral-600 dark:text-neutral-400">
-            {vehicle.year} {vehicle.make} {vehicle.model}
-          </p>
-          <p className="mt-1 text-sm text-neutral-500">{formatMiles(vehicle.odometer)}</p>
+        <li key={vehicle.id}>
+          {/* The whole card is the target, not a "view" link tucked in a
+              corner: on a phone the card is what the thumb aims at. */}
+          <Link
+            href={`${ADD_HREF.replace('/add', '')}/${vehicle.id}`}
+            className="block px-4 py-4 hover:bg-neutral-50 dark:hover:bg-neutral-800"
+          >
+            <h2 className="text-base font-semibold">{vehicle.display_name}</h2>
+            <p className="text-sm text-neutral-600 dark:text-neutral-400">
+              {vehicle.year} {vehicle.make} {vehicle.model}
+            </p>
+            <p className="mt-1 text-sm text-neutral-500">{formatMiles(vehicle.odometer)}</p>
+          </Link>
         </li>
       ))}
     </ul>
