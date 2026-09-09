@@ -472,11 +472,12 @@ challenge. Verified against the staging issuer first (105s to issue), then produ
 now presents a publicly trusted certificate: `ssl_verify_result=0` with full verification and
 correct SNI, which is precisely the check Cloudflare performs in _Full (strict)_.
 
-**One step remains, and it belongs to the account owner:** switch the zone's SSL/TLS mode from
-_Full_ to _Full (strict)_ in the Cloudflare dashboard. Until then the certificate is present but
-unverified — Cloudflare still cannot distinguish this origin from anything else answering on that
-address. The scoped DNS token deliberately cannot change zone settings, which is why this is a
-dashboard action rather than an automated one.
+**Full (strict) enabled 2026-09-09.** Cloudflare now verifies the origin certificate rather than
+merely encrypting to it. Confirmed by repeated requests across every entry point returning 200 with
+no 525/526 — the status codes Cloudflare returns when it rejects an origin certificate.
+
+The switch was a dashboard action by the account owner: the scoped DNS token deliberately cannot
+change zone settings, and that scoping is the point.
 
 ---
 
