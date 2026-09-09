@@ -20,10 +20,21 @@ def main() -> None:
     if len(sys.argv) != 2:
         raise SystemExit("usage: generate-openapi.py <output.json>")
 
-    # No database or Redis URL: the contract must not depend on infrastructure
-    # being reachable, or CI cannot check it.
+    # URLs are supplied but nothing connects: create_async_engine and the Redis
+    # client are both lazy, so no infrastructure is required to build the app.
+    #
+    # They must be supplied, though. Routers are mounted conditionally on their
+    # dependencies being configured, so generating the contract without them
+    # silently produces a document describing only /health and /ready -- and
+    # the drift gate would then be perfectly happy with a contract missing
+    # every product endpoint.
     app = create_app(
-        settings=Settings(environment="test", log_format="json"),
+        settings=Settings(
+            environment="test",
+            log_format="json",
+            database_url="postgresql+asyncpg://contract:contract@localhost:5432/contract",
+            redis_url="redis://localhost:6379/0",
+        ),
         readiness=ReadinessRegistry(),
     )
     # A file rather than stdout: the application logs its startup line to

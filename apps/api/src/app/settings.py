@@ -55,6 +55,11 @@ class Settings(BaseSettings):
     # probes still hit /health and /ready on the pod unprefixed.
     root_path: str = ""
 
+    #: Where the magic link points. The API does not know the browser's URL --
+    #: it is reached through Cloudflare, Traefik and a path prefix -- so a link
+    #: built from the request would point somewhere unreachable.
+    app_base_url: str = "http://localhost:3000"
+
     # Unset in Phase 0 and in most tests: the service ran without a database at
     # all, and must keep being able to. When set, a readiness check is
     # registered for it — but never a liveness check.
