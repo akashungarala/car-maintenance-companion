@@ -139,8 +139,22 @@ jobs:
       - name: Build
         run: pnpm --filter @cmc/web run build
 
+      # Retried: this downloads a browser from a Google apt mirror, and it has
+      # already failed once this project on a hash-sum mismatch that had
+      # nothing to do with the code. A network flake that blocks a merge with a
+      # red frontend job is how reruns become reflexive.
       - name: Install Playwright browsers
-        run: pnpm --filter @cmc/web exec playwright install --with-deps chromium
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if pnpm --filter @cmc/web exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "playwright install attempt $attempt failed; retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          echo "::error::playwright install failed three times"
+          exit 1
 
       - name: End-to-end tests
         run: pnpm --filter @cmc/web exec playwright test
