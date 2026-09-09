@@ -180,3 +180,31 @@ increments the first, so check the receiver too:
 ```
 GET /api/alertmanager/grafana/api/v2/alerts   ->  receivers: ['discord']
 ```
+
+## Cloudflare origin lock
+
+80 and 443 accept connections only from Cloudflare's published IPv4 ranges
+(`infra/tofu/cloudflare_origin.tf`). The list is fetched at apply time rather
+than hardcoded, because Cloudflare adds ranges occasionally and a stale list
+fails in the worst way: visitors routed through a new range are blocked while
+everything looks healthy from here.
+
+**Re-run `tofu apply` periodically** — that is what refreshes the list. Nothing
+detects drift automatically: doing so would need OCI credentials in CI, which
+is a larger exposure than the problem it solves.
+
+The apply refuses if Cloudflare publishes fewer than 10 ranges or the fetch
+fails. An empty list would generate zero ingress rules and take the site off
+the internet, so failing loudly is the correct outcome.
+
+Breaking glass, if Cloudflare itself is the problem:
+
+```
+tofu apply -var 'http_ingress_cidrs=["0.0.0.0/0"]'
+```
+
+Set it back to `null` afterwards. While it is open, `CF-Connecting-IP` becomes
+forgeable and the rate limiter can be bypassed by anyone who sets that header.
+
+IPv4 only, deliberately: the origin has no IPv6 address, so Cloudflare always
+reaches it over IPv4 regardless of how the visitor arrived.
