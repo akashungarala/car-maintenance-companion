@@ -1,0 +1,41 @@
+# Cardinality watch.
+#
+# Scheduled rather than per-PR: a pull request cannot change cardinality until
+# it is deployed, so the number worth checking is the one production is
+# actually producing.
+name: Series check
+
+on:
+  schedule:
+    - cron: '17 6 * * *'
+  workflow_dispatch:
+
+jobs:
+  series:
+    name: Active series below the gate
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Check for credentials
+        id: creds
+        env:
+          TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: |
+          if [ -z "$TOKEN" ]; then
+            echo "GRAFANA_API_TOKEN is not configured; skipping" >> "$GITHUB_STEP_SUMMARY"
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: astral-sh/setup-uv@v7
+        if: steps.creds.outputs.present == 'true'
+        with:
+          python-version: '3.13'
+
+      - name: Check active series
+        if: steps.creds.outputs.present == 'true'
+        env:
+          GRAFANA_API_TOKEN: ${{ secrets.GRAFANA_API_TOKEN }}
+        run: uv run python scripts/grafana/series_check.py | tee -a "$GITHUB_STEP_SUMMARY"

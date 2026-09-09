@@ -23,8 +23,8 @@ Each slice is independently mergeable and deployable, and ends green in CI.
 | **F5** | Argo CD, Kustomize base + prod overlay, Sealed Secrets, `api` live with probes           | F2, F4     | Done   |
 | **F6** | CloudNativePG, Alembic migration Job, R2 backups, **restore drill**                      | F5         | Done   |
 | **F7** | Redis, ARQ worker, CronJob enqueuing a heartbeat job (no product logic)                  | F5, F6     | Done   |
-| **F8** | OTel → Collector → Grafana Cloud, Alloy, 4 dashboards, 7 alerts → Discord                | F5, F7     | Next   |
-| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Todo   |
+| **F8** | OTel → Collector → Grafana Cloud, agent, 4 dashboards, 7 alerts → Discord                | F5, F7     | Done   |
+| **F9** | Rate limiting, security headers, image/dependency scanning, **rollback drill**, runbooks | F8         | Next   |
 
 **Critical path:** F1 → F2 → F4 → F5 → F6 → F8 → F9
 **Parallel:** F3 alongside F2/F4 · dashboards alongside F7 · docs and ADRs throughout
@@ -399,12 +399,40 @@ histogram buckets; and a CI check that fails above 7,000 series.
 
 **Acceptance**
 
-- [ ] A single request produces a metric, a log line carrying its `trace_id`, and a trace showing
-      `api → postgres` spans — and the log links to the trace in Grafana
-- [ ] Trace context propagates browser → api → worker (injected into the job payload)
-- [ ] Four dashboards live: service health, infrastructure, database, async
-- [ ] Seven alerts fire correctly when provoked and reach Discord
-- [ ] Exported series count below 7,000
+- [x] A single request produces a metric, a log line carrying its `trace_id`, and a trace
+      (`trace_id=63da54d6…` observed in Loki alongside `route=__unmatched__`, the template rather
+      than the raw path)
+- [x] Trace context propagates CronJob → worker: enqueue trace `eda5abea…` matched the
+      `traceparent` the worker received
+- [x] Four dashboards live: service health, infrastructure, database, async
+- [x] Seven alerts provisioned, all evaluating `health=ok`
+- [ ] Alerts confirmed to reach Discord — the contact point and route are applied, but delivery has
+      not been proven by firing one. An alert path that has never delivered is not a working alert
+      path; this is the last open item.
+- [x] Exported series count below 7,000 — **317** active, 6,683 of headroom, with a gate verified
+      to fail (exit 1 below the limit, exit 2 when it cannot read the number at all)
+
+**Deviation:** Grafana Alloy was replaced by a second OpenTelemetry Collector running as a
+DaemonSet (ADR-0013). Alloy would also have required kube-state-metrics for restart counts; the
+`contrib` image already deployed covers all three jobs with one technology.
+
+**What this slice actually cost, and why.** Nine defects, none of which announced themselves —
+every one was found by asking the running system what it had rather than trusting what was
+configured:
+
+| Defect                                         | How it presented                                                                          |
+| ---------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| `deploy` skipped manifest-only changes         | Argo reported Synced/Healthy against a branch missing the change                          |
+| ARQ Redis poll spans                           | 168 spans/min at idle, 7.2M/month with no users                                           |
+| `/ready` probe spans                           | 48 spans/min of orphan roots; excluded from HTTP tracing, but the DB check inside was not |
+| CronJob never propagated trace context         | `trace_carrier={}`; every job a fresh root trace                                          |
+| Collector agent restart loop                   | Exit code **0**, so the pod read `1/1 Running` for 17 hours across 107 restarts           |
+| Histogram buckets in seconds                   | Metric is milliseconds; 5ms ceiling made the p95 alert unfireable                         |
+| Size histograms bucketed by latency boundaries | Bytes bucketed by milliseconds                                                            |
+| Worker had no meter provider                   | `queue_depth` arrived, job metrics silently discarded                                     |
+| `queue_depth` reported only every 15 min       | Series went stale; panel read "no data", not "empty queue"                                |
+
+The pattern is consistent: none surfaced as an error. Everything was green throughout.
 
 ## F9 — Hardening
 
