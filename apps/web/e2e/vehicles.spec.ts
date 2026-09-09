@@ -76,3 +76,31 @@ test('validation stops an impossible year before it reaches the API', async ({ p
   await expect(page.getByText(/between 1900 and/i)).toBeVisible();
   expect(called).toBe(false);
 });
+
+test('following the add link from an empty garage reaches the form', async ({ page }) => {
+  // The test that was missing. Every other test navigated to /garage/add
+  // directly, so a doubled base path in the link itself went unnoticed --
+  // jsdom does not apply basePath, so the component test agreed with the
+  // broken value too.
+  await page.route(ME, (route) => route.fulfill({ status: 200, json: SIGNED_IN }));
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 200, json: [] }));
+
+  await page.goto(`${APP}/garage`);
+  await page.getByRole('link', { name: /add a vehicle/i }).click();
+
+  await expect(page).toHaveURL(`${APP}/garage/add`);
+  await expect(page.getByRole('heading', { name: /add a vehicle/i })).toBeVisible();
+});
+
+test('following a vehicle card reaches its dashboard', async ({ page }) => {
+  await page.route(ME, (route) => route.fulfill({ status: 200, json: SIGNED_IN }));
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 200, json: [CIVIC] }));
+  await page.route('**/api/vehicles/v1/plan', (route) =>
+    route.fulfill({ status: 200, json: { vehicle_id: 'v1', estimated_mileage: 48200, items: [] } }),
+  );
+
+  await page.goto(`${APP}/garage`);
+  await page.getByRole('link', { name: /the civic/i }).click();
+
+  await expect(page).toHaveURL(`${APP}/garage/v1`);
+});
