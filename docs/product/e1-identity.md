@@ -127,3 +127,59 @@ control of the address is proven.
 
 Sign-out and protected routes (E1-003). Session revocation from other devices, which needs a UI
 nobody has asked for yet.
+
+---
+
+## E1-003 — Stay signed in, and be able to leave
+
+**As** someone who has signed in
+**I want** the app to know who I am, and to be able to sign out
+**So that** I am not asked again on every visit, and I can end it on a shared machine.
+
+### The gap this closes
+
+After E1-002 a person clicks their link, lands on the app, and sees nothing
+different. Signing in successfully and signing in unsuccessfully look identical.
+That is not a defect in E1-002 — its job ends at the redirect — but it means the
+identity epic has so far produced no visible effect, and a user has no way to
+tell whether it worked.
+
+### Product decisions
+
+**The frontend gate is convenience, not security.** A page that checks
+`/auth/me` and redirects is there so people are not shown a shell they cannot
+use. It is not what protects anything: the API refuses unauthenticated requests
+on its own, and it would do so even if the page were served to the whole
+internet. Treating a client-side redirect as a security control is how data
+ends up in a payload that "only signed-in users can see".
+
+**Sign-out revokes on the server.** Clearing the cookie alone would leave a
+valid session behind — usable by anyone who captured it, and impossible to end
+from a device you no longer have. This is the reason sessions are rows
+(ADR-0014), and sign-out is where that choice pays.
+
+**Sign-out is not confirmed.** It is trivially reversible: sign in again. A
+confirmation dialogue for an action whose undo is "do the thing you already know
+how to do" is friction pretending to be safety.
+
+**Signing out on a broken connection still signs you out locally.** If the
+revoke request fails, the cookie is cleared and the user is sent to the sign-in
+page anyway. Leaving someone apparently signed in on a shared machine because
+the network hiccuped is the worse failure of the two, and the session still
+expires on its own.
+
+### Acceptance criteria
+
+- [ ] Given a valid session, when the garage is opened, then it shows the address signed in with
+- [ ] Given no session, when the garage is opened, then the browser goes to the sign-in page
+- [ ] Given an expired or revoked session, when the garage is opened, then the browser goes to the
+      sign-in page
+- [ ] Given a signed-in user, when they sign out, then the session is revoked server-side
+- [ ] Given a revoked session, when its cookie is replayed, then the API returns 401
+- [ ] Given a failed sign-out request, then the user is still returned to the sign-in page
+- [ ] The garage page shows nothing about the user until the API has confirmed who they are
+
+### Out of scope
+
+The actual garage — vehicles, maintenance, anything a person came here for. That is E2. This story
+delivers a page that proves who you are and lets you leave, and deliberately nothing else.
