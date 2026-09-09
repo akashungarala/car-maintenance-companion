@@ -13,6 +13,10 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
 
+# Imported for the side effect of registering the tables on Base.metadata.
+# Without this, autogenerate sees no models and cheerfully proposes dropping
+# every table the application depends on.
+from app.identity import models as _identity_models  # noqa: F401
 from app.models import Base
 from app.settings import Settings
 
