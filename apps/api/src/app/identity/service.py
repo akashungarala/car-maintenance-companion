@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+import uuid
 from datetime import UTC, datetime, timedelta
 
 import structlog
@@ -9,7 +10,7 @@ from sqlalchemy import select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.identity.models import MagicLinkToken, User
+from app.identity.models import MagicLinkToken, Session, User
 
 logger = structlog.get_logger()
 
@@ -20,6 +21,11 @@ TOKEN_BYTES = 32
 #: ADR-0009. Long enough to switch to a phone and find the email; short enough
 #: that a link left in an inbox for a week is not a standing key.
 TOKEN_LIFETIME = timedelta(minutes=15)
+
+#: Sliding. This is a product people use when something needs doing, which may
+#: be six weeks apart, so a session that expires between visits turns every
+#: visit into a sign-in -- the thing this epic exists to avoid.
+SESSION_LIFETIME = timedelta(days=30)
 
 
 def hash_token(raw: str) -> str:
@@ -135,3 +141,65 @@ class IdentityService:
         await self._session.commit()
         logger.info("magic_link_consumed", user_id=str(user.id))
         return user
+
+
+class SessionService:
+    """Creating, resolving and revoking signed-in browsers."""
+
+    def __init__(self, session: AsyncSession) -> None:
+        self._session = session
+
+    async def create(self, user_id: uuid.UUID) -> tuple[str, Session]:
+        raw = secrets.token_urlsafe(TOKEN_BYTES)
+        record = Session(
+            user_id=user_id,
+            token_hash=hash_token(raw),
+            expires_at=datetime.now(UTC) + SESSION_LIFETIME,
+        )
+        self._session.add(record)
+        await self._session.commit()
+        logger.info("session_created", user_id=str(user_id))
+        return raw, record
+
+    async def resolve(self, raw: str) -> User | None:
+        """Who this cookie belongs to, extending the session as a side effect.
+
+        Sliding expiry: somebody who visits every week is never signed out,
+        while somebody who disappears for a month is. The extension is written
+        on every request, which is one small write per request and the reason
+        last_seen_at is useful at all.
+        """
+        now = datetime.now(UTC)
+        result = await self._session.execute(
+            update(Session)
+            .where(
+                Session.token_hash == hash_token(raw),
+                Session.revoked_at.is_(None),
+                Session.expires_at > now,
+            )
+            .values(expires_at=now + SESSION_LIFETIME, last_seen_at=now)
+            .returning(Session.user_id)
+        )
+        row = result.first()
+        if row is None:
+            await self._session.rollback()
+            return None
+
+        user = (
+            await self._session.execute(select(User).where(User.id == row.user_id))
+        ).scalar_one()
+        await self._session.commit()
+        return user
+
+    async def revoke(self, raw: str) -> None:
+        """End a session.
+
+        Signing out with a cookie that is already stale is ordinary rather than
+        exceptional, so an unknown token is not an error.
+        """
+        await self._session.execute(
+            update(Session)
+            .where(Session.token_hash == hash_token(raw), Session.revoked_at.is_(None))
+            .values(revoked_at=datetime.now(UTC))
+        )
+        await self._session.commit()
