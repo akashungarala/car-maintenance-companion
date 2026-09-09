@@ -1,0 +1,12 @@
+{
+  "name": "@cmc/api-types",
+  "version": "0.1.1",
+  "private": true,
+  "types": "schema.d.ts",
+  "files": [
+    "schema.d.ts"
+  ],
+  "devDependencies": {
+    "openapi-typescript": "7.13.0"
+  }
+}
