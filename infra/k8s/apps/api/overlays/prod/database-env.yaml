@@ -19,3 +19,9 @@ spec:
             # The local collector, never a vendor URL (ADR-0004).
             - name: CMC_OTLP_ENDPOINT
               value: http://otel-collector.cmc.svc.cluster.local:4318
+            # Where sign-in links point. The API cannot infer this: it is
+            # reached through Cloudflare, Traefik and a path prefix, so a link
+            # built from the incoming request would point somewhere the browser
+            # cannot reach.
+            - name: CMC_APP_BASE_URL
+              value: https://www.akashungarala.com/apps/car-maintenance-companion
