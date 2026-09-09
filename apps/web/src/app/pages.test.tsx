@@ -12,6 +12,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { server } from '../mocks/node';
 import CallbackPage from './auth/callback/page';
+import AddVehiclePage from './garage/add/page';
 import GaragePage from './garage/page';
 import SignInPage from './signin/page';
 
@@ -30,11 +31,18 @@ describe('route entry points', () => {
       http.get('/apps/car-maintenance-companion/api/auth/me', () =>
         HttpResponse.json({ id: 'u1', email: 'sam@example.com' }),
       ),
+      http.get('/apps/car-maintenance-companion/api/vehicles', () => HttpResponse.json([])),
     );
 
     render(<GaragePage />);
 
     expect(screen.getByRole('button', { name: /sign out/i })).toBeInTheDocument();
+  });
+
+  it('renders the add-vehicle page', () => {
+    render(<AddVehiclePage />);
+
+    expect(screen.getByRole('heading', { name: /add a vehicle/i })).toBeInTheDocument();
   });
 
   it('passes the token from the query string to the callback client', async () => {

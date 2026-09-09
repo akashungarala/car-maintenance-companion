@@ -13,6 +13,13 @@ import { GarageClient } from './GarageClient';
 
 const ME = '/apps/car-maintenance-companion/api/auth/me';
 const SESSION = '/apps/car-maintenance-companion/api/auth/session';
+const VEHICLES = '/apps/car-maintenance-companion/api/vehicles';
+
+/** The page fetches identity and vehicles together; most tests care about one. */
+const signedIn = (vehicles: unknown[] = []) => [
+  http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })),
+  http.get(VEHICLES, () => HttpResponse.json(vehicles)),
+];
 
 // vi.hoisted, because vi.mock is lifted above the imports and its factory
 // cannot reach a const declared below it.
@@ -29,7 +36,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 describe('GarageClient', () => {
   it('shows the address once the API confirms it', async () => {
-    server.use(http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })));
+    server.use(...signedIn());
 
     render(<GarageClient />);
 
@@ -37,7 +44,7 @@ describe('GarageClient', () => {
   });
 
   it('shows nothing about the user while loading', () => {
-    server.use(http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })));
+    server.use(...signedIn());
 
     render(<GarageClient />);
 
@@ -48,7 +55,10 @@ describe('GarageClient', () => {
 
   it('goes to sign-in when the session is not valid', async () => {
     replace.mockClear();
-    server.use(http.get(ME, () => HttpResponse.json({}, { status: 401 })));
+    server.use(
+      http.get(ME, () => HttpResponse.json({}, { status: 401 })),
+      http.get(VEHICLES, () => HttpResponse.json([])),
+    );
 
     render(<GarageClient />);
 
@@ -57,7 +67,10 @@ describe('GarageClient', () => {
 
   it('offers a retry instead of redirecting when the server errors', async () => {
     replace.mockClear();
-    server.use(http.get(ME, () => HttpResponse.json({}, { status: 500 })));
+    server.use(
+      http.get(ME, () => HttpResponse.json({}, { status: 500 })),
+      http.get(VEHICLES, () => HttpResponse.json([])),
+    );
 
     render(<GarageClient />);
 
@@ -71,7 +84,7 @@ describe('GarageClient', () => {
     const user = userEvent.setup();
     const methods: string[] = [];
     server.use(
-      http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })),
+      ...signedIn(),
       http.delete(SESSION, ({ request }) => {
         methods.push(request.method);
         return new HttpResponse(null, { status: 204 });
@@ -89,7 +102,7 @@ describe('GarageClient', () => {
     const user = userEvent.setup();
     replace.mockClear();
     server.use(
-      http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })),
+      ...signedIn(),
       http.delete(SESSION, () => HttpResponse.error()),
     );
     render(<GarageClient />);
@@ -103,10 +116,57 @@ describe('GarageClient', () => {
   });
 
   it('names what is missing rather than showing a blank page', async () => {
-    server.use(http.get(ME, () => HttpResponse.json({ id: 'u1', email: 'sam@example.com' })));
+    server.use(...signedIn([]));
 
     render(<GarageClient />);
 
-    expect(await screen.findByText(/your garage is empty/i)).toBeInTheDocument();
+    expect(await screen.findByRole('heading', { name: /add your first car/i })).toBeInTheDocument();
+  });
+
+  it('lists the vehicles it was given', async () => {
+    server.use(
+      ...signedIn([
+        {
+          id: 'v1',
+          year: 2019,
+          make: 'Honda',
+          model: 'Civic',
+          nickname: 'The Civic',
+          display_name: 'The Civic',
+          odometer: 48200,
+          odometer_recorded_at: '2026-09-09T00:00:00Z',
+          annual_mileage: 12000,
+          created_at: '2026-09-09T00:00:00Z',
+        },
+      ]),
+    );
+
+    render(<GarageClient />);
+
+    expect(await screen.findByRole('heading', { name: 'The Civic' })).toBeInTheDocument();
+    expect(screen.getByText('48,200 miles')).toBeInTheDocument();
+  });
+
+  it('offers the add action in the header once a vehicle exists', async () => {
+    server.use(
+      ...signedIn([
+        {
+          id: 'v1',
+          year: 2019,
+          make: 'Honda',
+          model: 'Civic',
+          nickname: null,
+          display_name: '2019 Honda Civic',
+          odometer: 1,
+          odometer_recorded_at: '2026-09-09T00:00:00Z',
+          annual_mileage: 12000,
+          created_at: '2026-09-09T00:00:00Z',
+        },
+      ]),
+    );
+
+    render(<GarageClient />);
+
+    expect(await screen.findAllByRole('link', { name: /add a vehicle/i })).toHaveLength(1);
   });
 });
