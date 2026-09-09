@@ -53,6 +53,29 @@ receivers:
   prometheus:
     config:
       scrape_configs:
+        # cert-manager. Since the zone moved to Full (strict), an expired
+        # origin certificate takes the entire site down with no degraded mode
+        # in between -- Cloudflare returns 526 and stops proxying. Renewal is
+        # automatic at 30 days remaining, so the risk is not expiry itself but
+        # renewal failing silently for a month.
+        - job_name: cert-manager
+          scrape_interval: 60s
+          kubernetes_sd_configs:
+            - role: pod
+              namespaces:
+                names: [cert-manager]
+          relabel_configs:
+            - source_labels: [__meta_kubernetes_pod_node_name]
+              regex: ${env:K8S_NODE_NAME}
+              action: keep
+            - source_labels: [__meta_kubernetes_pod_container_port_number]
+              regex: '9402'
+              action: keep
+          metric_relabel_configs:
+            - source_labels: [__name__]
+              regex: 'certmanager_certificate_(expiration_timestamp_seconds|ready_status|renewal_timestamp_seconds)'
+              action: keep
+
         - job_name: cnpg
           # The database changes slowly. 60s is four times cheaper than the
           # 15s default and still gives five points inside a five-minute alert
