@@ -13,6 +13,8 @@ from sqlalchemy.engine import Connection
 from sqlalchemy.ext.asyncio import async_engine_from_config
 from sqlalchemy.pool import NullPool
 
+from app.garage import models as _garage_models  # noqa: F401
+
 # Imported for the side effect of registering the tables on Base.metadata.
 # Without this, autogenerate sees no models and cheerfully proposes dropping
 # every table the application depends on.
