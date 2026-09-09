@@ -15,7 +15,13 @@ from app.logging import configure_logging
 from app.queue import build_redis_settings
 from app.settings import Settings
 from app.tasks import heartbeat, with_dead_letter
-from app.telemetry import configure_tracing, instrument
+from app.telemetry import (
+    configure_metrics,
+    configure_tracing,
+    flush_metrics,
+    flush_tracing,
+    instrument,
+)
 
 logger = structlog.get_logger()
 
@@ -40,6 +46,11 @@ async def startup(ctx: dict[str, Any]) -> None:
     settings = Settings()
     configure_logging(settings)
     configure_tracing(settings)
+    # Every background job runs in this process and records job.duration and
+    # job.dead_letters. Without a meter provider those go to the no-op proxy
+    # and are discarded without error, leaving the async dashboard showing a
+    # queue with work in it and no jobs ever running.
+    configure_metrics(settings)
     instrument()
     if not settings.redis_url:
         raise RuntimeError(
@@ -52,6 +63,12 @@ async def startup(ctx: dict[str, Any]) -> None:
 
 async def shutdown(ctx: dict[str, Any]) -> None:
     logger.info("worker_stopping")
+    # A worker pod is stopped on every deploy. Both providers export on timers,
+    # so anything buffered when the signal arrived is lost unless it is
+    # flushed -- and a job that failed just before a rollout is precisely the
+    # one worth keeping.
+    flush_tracing()
+    flush_metrics()
 
 
 class WorkerSettings:
