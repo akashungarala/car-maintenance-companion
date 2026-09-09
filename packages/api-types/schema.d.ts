@@ -157,6 +157,40 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/vehicles/{vehicle_id}/history': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** What has been done to this vehicle */
+    get: operations['get_history_vehicles__vehicle_id__history_get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/vehicles/{vehicle_id}/items/{item_id}/complete': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /** Mark maintenance done */
+    post: operations['complete_item_vehicles__vehicle_id__items__item_id__complete_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/vehicles/{vehicle_id}/plan': {
     parameters: {
       query?: never;
@@ -178,6 +212,16 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
   schemas: {
+    /** CompleteRequest */
+    CompleteRequest: {
+      /** Odometer */
+      odometer: number;
+      /**
+       * Performed At
+       * Format: date
+       */
+      performed_at: string;
+    };
     /** HTTPValidationError */
     HTTPValidationError: {
       /** Detail */
@@ -220,6 +264,23 @@ export interface components {
        * Format: uuid
        */
       vehicle_id: string;
+    };
+    /** ServiceRecordOut */
+    ServiceRecordOut: {
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Name */
+      name: string;
+      /** Odometer */
+      odometer: number;
+      /**
+       * Performed At
+       * Format: date
+       */
+      performed_at: string;
     };
     /** SessionRequest */
     SessionRequest: {
@@ -516,6 +577,73 @@ export interface operations {
         };
         content: {
           'application/json': components['schemas']['VehicleOut'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_history_vehicles__vehicle_id__history_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        vehicle_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ServiceRecordOut'][];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  complete_item_vehicles__vehicle_id__items__item_id__complete_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        vehicle_id: string;
+        item_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['CompleteRequest'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['ServiceRecordOut'];
         };
       };
       /** @description Validation Error */
