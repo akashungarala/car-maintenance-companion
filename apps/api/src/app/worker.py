@@ -5,14 +5,17 @@ projection and digest jobs whose failure modes and scaling curve differ from
 request handling, and which must never occupy a request-handling process.
 """
 
+import asyncio
+import contextlib
 from collections.abc import Callable
 from typing import Any, ClassVar
 
 import structlog
 from arq.connections import RedisSettings
 
+from app import metrics as job_metrics
 from app.logging import configure_logging
-from app.queue import build_redis_settings
+from app.queue import build_redis_settings, queue_depth
 from app.settings import Settings
 from app.tasks import heartbeat, with_dead_letter
 from app.telemetry import (
@@ -42,6 +45,30 @@ def _redis_settings() -> RedisSettings:
     return build_redis_settings(url) if url else RedisSettings()
 
 
+# Often enough that the series never goes stale, rarely enough to be free.
+QUEUE_DEPTH_INTERVAL_SECONDS = 30.0
+
+
+async def record_queue_depth_once(redis: Any) -> None:
+    """Sample the queue once.
+
+    Errors are swallowed deliberately. An unhandled exception here would end
+    the polling task silently, and queue depth would stop being reported while
+    the worker still looked healthy -- the reporting failing exactly like the
+    thing it is meant to report on.
+    """
+    try:
+        job_metrics.record_queue_depth(await queue_depth(redis))
+    except Exception as exc:
+        logger.warning("queue_depth_sample_failed", error=str(exc))
+
+
+async def _poll_queue_depth(redis: Any) -> None:
+    while True:
+        await record_queue_depth_once(redis)
+        await asyncio.sleep(QUEUE_DEPTH_INTERVAL_SECONDS)
+
+
 async def startup(ctx: dict[str, Any]) -> None:
     settings = Settings()
     configure_logging(settings)
@@ -58,11 +85,21 @@ async def startup(ctx: dict[str, Any]) -> None:
             "idle forever consuming nothing, which looks like a quiet queue "
             "rather than a broken deployment."
         )
+    # The CronJob also reports depth -- it must, since it keeps running when
+    # this process is not -- but only every fifteen minutes, so the series goes
+    # stale in between and the panel reads "no data" rather than "empty queue".
+    if ctx.get("redis") is not None:
+        ctx["queue_depth_task"] = asyncio.create_task(_poll_queue_depth(ctx["redis"]))
     logger.info("worker_started", max_tries=MAX_TRIES)
 
 
 async def shutdown(ctx: dict[str, Any]) -> None:
     logger.info("worker_stopping")
+    task = ctx.get("queue_depth_task")
+    if task is not None:
+        task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await task
     # A worker pod is stopped on every deploy. Both providers export on timers,
     # so anything buffered when the signal arrived is lost unless it is
     # flushed -- and a job that failed just before a rollout is precisely the

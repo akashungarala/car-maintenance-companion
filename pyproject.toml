@@ -34,6 +34,9 @@ ignore = [
 # that actually does something, and stripping them from generated files just
 # means adding them back by hand on the next one.
 "**/migrations/versions/*.py" = ["F401"]
+# Operator scripts run by a person at a terminal. print IS the output, and the
+# URLs they open are constants defined a few lines above, not user input.
+"scripts/**" = ["T201", "S310"]
 
 [tool.mypy]
 python_version = "3.13"

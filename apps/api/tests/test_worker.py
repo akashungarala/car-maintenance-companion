@@ -45,3 +45,38 @@ async def test_shutdown_flushes_telemetry(monkeypatch: pytest.MonkeyPatch) -> No
     await worker.shutdown({})
 
     assert flushed == ["traces", "metrics"] or set(flushed) == {"traces", "metrics"}
+
+
+class FakeRedis:
+    def __init__(self, depth: int) -> None:
+        self.depth = depth
+
+    async def zcard(self, _key: str) -> int:
+        return self.depth
+
+
+async def test_queue_depth_is_recorded_by_the_worker(metric_reader: Any) -> None:
+    """The CronJob reports depth every fifteen minutes, so the series goes
+    stale between runs and the panel reads as "no data" rather than "empty
+    queue". The worker is long-running, so it can keep the series alive.
+    """
+    from tests.conftest import points_for
+
+    await worker.record_queue_depth_once(FakeRedis(7))
+
+    points = points_for(metric_reader, "queue.depth")
+    assert points and points[-1].value == 7
+
+
+async def test_queue_depth_polling_survives_redis_errors(metric_reader: Any) -> None:
+    """A Redis blip must not kill the poller.
+
+    An unhandled exception in the task would end it silently, and queue depth
+    would stop being reported with the worker still apparently healthy.
+    """
+
+    class BrokenRedis:
+        async def zcard(self, _key: str) -> int:
+            raise ConnectionError("redis is down")
+
+    await worker.record_queue_depth_once(BrokenRedis())  # must not raise
