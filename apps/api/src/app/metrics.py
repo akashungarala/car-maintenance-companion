@@ -33,6 +33,11 @@ DEAD_LETTERS = _meter.create_counter(
     description="Jobs that exhausted their retries",
 )
 
+RATE_LIMIT_REJECTED = _meter.create_counter(
+    "rate_limit.rejected",
+    description="Requests refused by the rate limiter",
+)
+
 QUEUE_DEPTH = _meter.create_gauge(
     "queue.depth",
     description="Jobs waiting to be picked up",
@@ -77,3 +82,15 @@ def record_queue_depth(depth: int) -> None:
     exactly the moment the number matters.
     """
     QUEUE_DEPTH.set(depth)
+
+
+def record_rate_limit_rejection(bucket: str) -> None:
+    """Count a refusal.
+
+    Labelled with the bucket ("api" or "auth") and nothing else. The caller's
+    address identifies the bucket in Redis, but as a metric label it would be
+    an unbounded series generator against a 10,000 cap -- and it would put a
+    personal identifier into a store that neither needs nor expects one. Which
+    caller was refused belongs in the log line.
+    """
+    RATE_LIMIT_REJECTED.add(1, {"bucket": bucket})
