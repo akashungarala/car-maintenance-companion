@@ -140,4 +140,15 @@ describe('DashboardClient', () => {
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/garage'));
   });
+
+  it('opens the mark-done sheet from an item', async () => {
+    const { default: userEvent } = await import('@testing-library/user-event');
+    const user = userEvent.setup();
+    server.use(plan([item()]));
+
+    render(<DashboardClient vehicleId="v1" />);
+    await user.click(await screen.findByRole('button', { name: /engine oil/i }));
+
+    expect(await screen.findByRole('dialog', { name: /engine oil/i })).toBeInTheDocument();
+  });
 });

@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react';
 
 import { apiUrl } from '../../../lib/api';
 import { BANDS, formatDueDate, type Plan, type PlanItem, type PlanStatus } from '../../../lib/plan';
+import { MarkDoneSheet } from './MarkDoneSheet';
 
 type State = { kind: 'loading' } | { kind: 'ready'; plan: Plan } | { kind: 'error' };
 
@@ -16,32 +17,41 @@ const BAND_STYLES: Record<PlanStatus, string> = {
   upcoming: 'bg-neutral-50 text-neutral-700 dark:bg-neutral-800 dark:text-neutral-300',
 };
 
-function Item({ item }: { item: PlanItem }) {
+function Item({ item, onMarkDone }: { item: PlanItem; onMarkDone: () => void }) {
   return (
-    <li className="px-5 py-4">
-      <div className="sm:flex sm:items-baseline sm:justify-between sm:gap-4">
-        <p className="font-medium">{item.name}</p>
-        <p className="text-sm text-neutral-600 dark:text-neutral-400">
-          {item.due_at ? (
-            <>
-              due {formatDueDate(item.due_at)}
-              {item.due_mileage !== null
-                ? ` · at ${item.due_mileage.toLocaleString('en-US')} mi`
-                : null}
-            </>
-          ) : (
-            'not scheduled'
-          )}
-        </p>
-      </div>
-      {item.is_assumed ? (
-        // The single most important detail on this screen. Real text, not an
-        // icon or a tooltip: touch devices have no hover, and what this says is
-        // too important to hide behind one.
-        <p className="mt-1 text-xs text-neutral-500">
-          Assumed: we started tracking this when you added the car.
-        </p>
-      ) : null}
+    <li>
+      {/* The whole row is the action. On a phone that is what the thumb aims
+          at, and "mark done" is the only thing anybody comes to this list to
+          do. */}
+      <button
+        type="button"
+        onClick={onMarkDone}
+        className="w-full px-5 py-4 text-left hover:bg-neutral-50 dark:hover:bg-neutral-800"
+      >
+        <div className="sm:flex sm:items-baseline sm:justify-between sm:gap-4">
+          <p className="font-medium">{item.name}</p>
+          <p className="text-sm text-neutral-600 dark:text-neutral-400">
+            {item.due_at ? (
+              <>
+                due {formatDueDate(item.due_at)}
+                {item.due_mileage !== null
+                  ? ` · at ${item.due_mileage.toLocaleString('en-US')} mi`
+                  : null}
+              </>
+            ) : (
+              'not scheduled'
+            )}
+          </p>
+        </div>
+        {item.is_assumed ? (
+          // The single most important detail on this screen. Real text, not an
+          // icon or a tooltip: touch devices have no hover, and what this says is
+          // too important to hide behind one.
+          <p className="mt-1 text-xs text-neutral-500">
+            Assumed: we started tracking this when you added the car.
+          </p>
+        ) : null}
+      </button>
     </li>
   );
 }
@@ -50,6 +60,7 @@ export function DashboardClient({ vehicleId }: { vehicleId: string }) {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: 'loading' });
   const [attempt, setAttempt] = useState(0);
+  const [marking, setMarking] = useState<PlanItem | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -149,12 +160,30 @@ export function DashboardClient({ vehicleId }: { vehicleId: string }) {
             </h2>
             <ul className="divide-y divide-neutral-100 dark:divide-neutral-800">
               {items.map((item) => (
-                <Item key={item.id} item={item} />
+                <Item key={item.id} item={item} onMarkDone={() => setMarking(item)} />
               ))}
             </ul>
           </section>
         );
       })}
+
+      {marking ? (
+        <MarkDoneSheet
+          vehicleId={vehicleId}
+          item={{ id: marking.id, name: marking.name }}
+          estimatedMileage={plan.estimated_mileage}
+          onClose={() => setMarking(null)}
+          onDone={() => {
+            setMarking(null);
+            // Reload rather than patching state locally: completing an item
+            // moves the vehicle's odometer anchor and may change the usage
+            // rate, so every other item's date can shift too. Guessing at that
+            // in the client would eventually disagree with the server.
+            setState({ kind: 'loading' });
+            setAttempt((n) => n + 1);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
