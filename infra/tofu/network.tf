@@ -66,7 +66,7 @@ resource "oci_core_security_list" "public" {
   # hostnames are Cloudflare-proxied and Cloudflare does not forward 6443.
 
   dynamic "ingress_security_rules" {
-    for_each = var.http_ingress_cidrs
+    for_each = toset(local.http_ingress_cidrs)
     content {
       protocol = "6"
       source   = ingress_security_rules.value
@@ -78,7 +78,7 @@ resource "oci_core_security_list" "public" {
   }
 
   dynamic "ingress_security_rules" {
-    for_each = var.http_ingress_cidrs
+    for_each = toset(local.http_ingress_cidrs)
     content {
       protocol = "6"
       source   = ingress_security_rules.value
