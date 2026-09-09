@@ -14,7 +14,7 @@ somewhere else, which is a thing a reviewer can see.
 
 import uuid
 
-from sqlalchemy import select
+from sqlalchemy import Select, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.garage.models import Vehicle
@@ -25,7 +25,7 @@ class VehicleRepository:
         self._session = session
         self._user_id = user_id
 
-    def _scoped(self):  # type: ignore[no-untyped-def]
+    def _scoped(self) -> Select[tuple[Vehicle]]:
         """Every query starts here. There is no unscoped variant."""
         return select(Vehicle).where(Vehicle.user_id == self._user_id)
 
