@@ -2,7 +2,11 @@ import Link from 'next/link';
 
 import { formatMiles, type Vehicle } from '../../lib/vehicles';
 
-const ADD_HREF = '/apps/car-maintenance-companion/garage/add';
+// Base-path relative, always. next/link prepends basePath itself, so an href
+// that already contains it renders the prefix twice — which 404s, and does so
+// only in a real Next runtime. jsdom does not apply basePath, so a component
+// test asserting the full string will happily confirm the broken value.
+const ADD_HREF = '/garage/add';
 
 export function VehicleList({ vehicles }: { vehicles: Vehicle[] }) {
   if (vehicles.length === 0) {
@@ -39,7 +43,7 @@ export function VehicleList({ vehicles }: { vehicles: Vehicle[] }) {
           {/* The whole card is the target, not a "view" link tucked in a
               corner: on a phone the card is what the thumb aims at. */}
           <Link
-            href={`${ADD_HREF.replace('/add', '')}/${vehicle.id}`}
+            href={`/garage/${vehicle.id}`}
             className="block px-4 py-4 hover:bg-neutral-50 dark:hover:bg-neutral-800"
           >
             <h2 className="text-base font-semibold">{vehicle.display_name}</h2>
