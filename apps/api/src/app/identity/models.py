@@ -3,9 +3,9 @@
 import uuid
 from datetime import datetime
 
-from sqlalchemy import DateTime, ForeignKey, Index, String, func
+from sqlalchemy import DateTime, Index, String, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.models import Base
 
@@ -26,10 +26,6 @@ class User(Base):
     )
     last_signed_in_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    tokens: Mapped[list["MagicLinkToken"]] = relationship(
-        back_populates="user", cascade="all, delete-orphan"
-    )
-
 
 class MagicLinkToken(Base):
     __tablename__ = "magic_link_tokens"
@@ -37,9 +33,12 @@ class MagicLinkToken(Base):
     id: Mapped[uuid.UUID] = mapped_column(
         PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
     )
-    user_id: Mapped[uuid.UUID] = mapped_column(
-        PgUUID(as_uuid=True), ForeignKey("users.id", ondelete="CASCADE"), nullable=False
-    )
+    # The address, not a user id. A link can be requested for any address --
+    # that is what makes the endpoint enumeration-safe -- so tying tokens to
+    # user rows would let anyone create accounts for addresses they do not
+    # control simply by asking. The user is created when a link is *consumed*,
+    # which is the point at which control of the address has been proven.
+    email: Mapped[str] = mapped_column(String(320), nullable=False, index=True)
     # The sha256 of the token, never the token. A leaked database then shows
     # that a link exists and when it expires, but cannot be used to construct
     # one -- which is the difference between an embarrassment and a breach.
@@ -53,15 +52,13 @@ class MagicLinkToken(Base):
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
 
-    user: Mapped[User] = relationship(back_populates="tokens")
-
     __table_args__ = (
         # Every lookup is "find the live token for this user", so the partial
         # index covers exactly the rows that query touches and skips the
         # accumulating history of spent ones.
         Index(
             "ix_magic_link_tokens_live",
-            "user_id",
+            "email",
             postgresql_where=consumed_at.is_(None),
         ),
     )

@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from app import health
 from app.cache import RedisHealth, build_client
 from app.database import Database
+from app.identity.router import router as auth_router
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
 from app.rate_limit import RateLimiter
@@ -37,7 +38,19 @@ def create_app(
 
     @asynccontextmanager
     async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        # The ARQ pool is built here rather than in create_app because it is
+        # async, and because a pool created at import time outlives reloads in
+        # development and leaks connections.
+        if settings.redis_url:
+            from arq import create_pool
+
+            from app.queue import build_redis_settings
+
+            _app.state.queue = await create_pool(build_redis_settings(settings.redis_url))
         yield
+        queue = getattr(_app.state, "queue", None)
+        if queue is not None:
+            await queue.aclose()
         # Nothing previously closed these. The process dying takes the sockets
         # with it, so it never showed in production -- but it leaks a
         # connection per app in the tests, and a graceful shutdown should hand
@@ -86,6 +99,11 @@ def create_app(
 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
+    # Only when there is somewhere to store tokens and something to enqueue
+    # with. Mounting it regardless would give a 500 where a missing route is
+    # both more honest and easier to diagnose.
+    if settings.database_url and settings.redis_url:
+        app.include_router(auth_router)
 
     # After the routes exist, so instrumentation sees them; excluded_urls keeps
     # the probes out of traces.

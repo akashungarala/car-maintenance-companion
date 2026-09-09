@@ -38,6 +38,16 @@ class Database:
     def session_factory(self) -> async_sessionmaker[AsyncSession]:
         return self._session_factory
 
+    def session(self) -> AsyncSession:
+        """One session for one unit of work.
+
+        A context manager at the call site rather than a dependency that
+        outlives the request: a session held open across an await that does
+        something slow holds a pooled connection with it, and the pool is five
+        connections wide.
+        """
+        return self._session_factory()
+
     async def execute_scalar(self, statement: str) -> Any:
         async with self._engine.connect() as conn:
             return (await conn.execute(text(statement))).scalar()

@@ -51,6 +51,30 @@ async def test_the_same_address_in_any_case_is_one_user(session: AsyncSession) -
     assert len(users) == 1
 
 
+async def test_requesting_a_link_creates_no_user(session: AsyncSession) -> None:
+    """Anyone can request a link for any address -- that is what makes the
+    endpoint enumeration-safe. Creating a user row at that point would let a
+    stranger fill the table with accounts for addresses they do not control.
+    """
+    service = IdentityService(session)
+
+    await service.issue_token("stranger@example.com")
+
+    assert (await session.execute(select(User))).scalars().all() == []
+
+
+async def test_consuming_a_link_creates_the_user(session: AsyncSession) -> None:
+    """Control of the address is proven here, and not before."""
+    service = IdentityService(session)
+    raw, _ = await service.issue_token("sam@example.com")
+
+    user = await service.consume_token(raw)
+
+    assert user is not None
+    assert user.email == "sam@example.com"
+    assert user.last_signed_in_at is not None
+
+
 async def test_the_raw_token_is_never_stored(session: AsyncSession) -> None:
     """A leaked database must not yield usable sign-in links.
 

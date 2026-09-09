@@ -24,6 +24,7 @@ dependencies = [
     "opentelemetry-instrumentation-httpx>=0.50b0",
     "opentelemetry-instrumentation-redis>=0.50b0",
     "opentelemetry-instrumentation-asyncpg>=0.50b0",
+    "pydantic[email]>=2.10",
 ]
 
 [build-system]
