@@ -97,27 +97,6 @@ jobs:
       - name: Type check (mypy --strict)
         run: uv run mypy apps/api/src
 
-      # Contract testing, for the cost of one step. The frontend and backend
-      # are separate deployments in separate languages; without a checked
-      # artefact, a backend change that alters a response shape breaks the
-      # frontend at runtime, in production, and neither side's tests notice
-      # because each is internally consistent on its own.
-      #
-      # The generator version is pinned in the lockfile. A floating version
-      # would rewrite the output on an unrelated dependency bump and fail this
-      # gate for a reason that has nothing to do with the contract.
-      - name: OpenAPI contract has not drifted
-        run: |
-          set -euo pipefail
-          make openapi
-          if ! git diff --quiet -- packages/api-types/schema.d.ts; then
-            echo "::error::The API contract changed but the generated types were not committed."
-            echo "Run 'make openapi' and commit packages/api-types/schema.d.ts."
-            git --no-pager diff -- packages/api-types/schema.d.ts
-            exit 1
-          fi
-          echo "contract types are up to date"
-
       - name: Tests + coverage gate
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
@@ -213,10 +192,12 @@ jobs:
 
       - uses: pnpm/action-setup@v4
 
+      # No `cache: pnpm`: nothing in this job populates a pnpm store, so the
+      # action's post-phase cache save fails the job over a path that was
+      # never going to exist.
       - uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
-          cache: pnpm
 
       # --prod: a vulnerability in a build-time tool is not shipped to anyone
       # and would block every deploy until an upstream fix exists. Runtime
@@ -233,6 +214,51 @@ jobs:
           done
           echo "::error::pnpm audit failed three times — treat as a real finding"
           exit 1
+
+  contract:
+    name: API contract (generated types)
+    needs: changes
+    if: needs.changes.outputs.backend == 'true' || needs.changes.outputs.frontend == 'true'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: astral-sh/setup-uv@v10.0.1
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      - name: Install dependencies
+        run: |
+          uv sync --all-extras --dev
+          pnpm install --frozen-lockfile
+
+      # Contract testing, for the cost of one step. The frontend and backend
+      # are separate deployments in separate languages; without a checked
+      # artefact, a backend change that alters a response shape breaks the
+      # frontend at runtime, in production, and neither side's tests notice
+      # because each is internally consistent on its own.
+      #
+      # The generator version is pinned in the lockfile. A floating version
+      # would rewrite the output on an unrelated dependency bump and fail this
+      # gate for a reason that has nothing to do with the contract.
+      - name: OpenAPI contract has not drifted
+        run: |
+          set -euo pipefail
+          make openapi
+          if ! git diff --quiet -- packages/api-types/schema.d.ts; then
+            echo "::error::The API contract changed but the generated types were not committed."
+            echo "Run 'make openapi' and commit packages/api-types/schema.d.ts."
+            git --no-pager diff -- packages/api-types/schema.d.ts
+            exit 1
+          fi
+          echo "contract types are up to date"
 
   image:
     name: Image (${{ matrix.service }})
@@ -513,7 +539,7 @@ jobs:
   ci-passed:
     name: CI passed
     runs-on: ubuntu-24.04
-    needs: [changes, format, backend, frontend, security, image, infra]
+    needs: [changes, format, backend, frontend, contract, security, image, infra]
     if: always()
     steps:
       - name: Verify all jobs succeeded
