@@ -36,6 +36,15 @@ class Settings(BaseSettings):
     # open until the kubelet's own timeout fires.
     readiness_timeout_seconds: float = 2.0
 
+    #: Requests per minute per caller for ordinary API traffic.
+    rate_limit_per_minute: int = 100
+    #: Authentication is far stricter: it is the endpoint worth guessing
+    #: against, and a legitimate person signs in once, not five times a minute.
+    auth_rate_limit_per_minute: int = 5
+    #: An escape hatch for an incident, not a feature flag. Turning limits off
+    #: is a decision someone should have to make deliberately.
+    rate_limit_enabled: bool = True
+
     # Path prefix this service is served under when behind a proxy that strips
     # it — in production, akashungarala.com/apps/car-maintenance-companion/api.
     # FastAPI needs it to generate correct URLs for /docs and openapi.json;
