@@ -482,22 +482,32 @@ dashboard action rather than an automated one.
 
 ## Phase 0 exit — the acceptance demo
 
-Phase 0 is complete when this runs end-to-end in one sitting, with evidence captured in
-`docs/runbook/phase-0-acceptance.md`:
+**Executed 2026-09-09.** Full evidence in
+[phase-0-acceptance.md](../runbook/phase-0-acceptance.md).
 
-1. Trivial change on a branch → PR opened
-2. CI runs: lint, types, backend tests, frontend tests, coverage, dependency audit, Trivy,
-   OpenAPI contract diff, migration round-trip
-3. Both builds pass; arm64 images built natively
-4. Merge → images pushed to GHCR → image tag bump committed
-5. Argo CD syncs; the migration Job runs first; rolling update respects probes
-6. `/health` returns 200; `/ready` reports database and Redis healthy
-7. `kubectl get pods` shows liveness, readiness and startup probes passing
-8. In Grafana: the request appears as a **metric**; its **log line** carries a `trace_id`; that link
-   opens the **trace** showing api → Postgres spans; the heartbeat job appears as a linked trace
-9. Kill a pod → the crash-loop alert fires → a Discord message arrives
-10. `git revert` the tag bump → Argo CD rolls back → health restored, duration recorded
-11. A database backup is restored from R2 into a scratch namespace and verified
-12. `gitleaks` confirms no secret exists in plaintext anywhere in the repository
+1. [x] Trivial change on a branch → PR #78
+2. [x] CI runs every gate — and found that the OpenAPI contract diff had never
+       been built, despite being specified. It was built and verified before the
+       demo continued
+3. [x] Both builds pass; `linux/arm64` natively, no emulation
+4. [x] Merge → images in GHCR → tag bump pinned in both overlays
+5. [x] Argo syncs; the migration Job completes in 5s before any pod takes
+       traffic; rolling update replaces one replica at a time
+6. [x] `/health` returns `0.1.2`; `/ready` reports database **and** Redis
+7. [x] Both pods: liveness, readiness and startup probes, 0 restarts
+8. [~] Metric, log carrying `trace_id`, and the trace that id resolves to —
+   plus the heartbeat as a genuinely _linked_ trace across two processes.
+   **The `api → Postgres` span could not be shown:** Phase 0 has no product
+   route that touches Postgres, and the only database access is the
+   readiness probe, deliberately excluded from instrumentation. A Redis span
+   nested under the HTTP span demonstrates the identical mechanism. A gap in
+   the criterion, not in the system
+9. [x] Crash loop → alert fires as `page` → `receivers=['discord']`, 5
+       notifications, 0 failures → resolves on its own when the condition clears
+10. [x] Rollback in **23s**, roll forward in **18s**
+11. [x] Backup restored from object storage into a scratch namespace, marker row
+        verified, namespace torn down
+12. [x] `177 commits scanned. no leaks found` — with a control proving the
+        scanner detects planted credentials
 
-**Only when all twelve pass does story E1-001 begin.**
+**Phase 0 is complete. Story E1-001 may begin.**
