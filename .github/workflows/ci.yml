@@ -171,8 +171,47 @@ jobs:
         # version; Dependabot keeps it current.
         uses: astral-sh/setup-uv@v10.0.1
 
+      # Retried, because a transient PyPI network error and an actual
+      # vulnerability both exit non-zero and are otherwise indistinguishable.
+      # Retrying does not weaken the gate: a real finding fails all three
+      # attempts identically, while a connection reset usually does not
+      # survive the first. Without this, a flaky network blocks a merge with a
+      # message that reads like a security finding.
       - name: Audit Python dependencies
-        run: uvx pip-audit --strict --progress-spinner=off || exit 1
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if uvx pip-audit --strict --progress-spinner=off; then
+              exit 0
+            fi
+            echo "pip-audit attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          echo "::error::pip-audit failed three times — treat as a real finding"
+          exit 1
+
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+
+      # --prod: a vulnerability in a build-time tool is not shipped to anyone
+      # and would block every deploy until an upstream fix exists. Runtime
+      # dependencies are what reach users, and those block.
+      - name: Audit JavaScript dependencies
+        run: |
+          set -euo pipefail
+          for attempt in 1 2 3; do
+            if pnpm audit --prod --audit-level high; then
+              exit 0
+            fi
+            echo "pnpm audit attempt $attempt failed; retrying in $((attempt * 10))s"
+            sleep $((attempt * 10))
+          done
+          echo "::error::pnpm audit failed three times — treat as a real finding"
+          exit 1
 
   image:
     name: Image (${{ matrix.service }})

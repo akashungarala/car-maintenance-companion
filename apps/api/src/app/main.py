@@ -1,9 +1,13 @@
 """Application factory."""
 
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+
 import structlog
 from fastapi import FastAPI
 
 from app import health
+from app.cache import RedisHealth, build_client
 from app.database import Database
 from app.logging import configure_logging
 from app.middleware import RequestContextMiddleware
@@ -29,7 +33,22 @@ def create_app(
     # error-rate and latency alerts have nothing to read.
     configure_metrics(settings)
 
+    @asynccontextmanager
+    async def lifespan(_app: FastAPI) -> AsyncIterator[None]:
+        yield
+        # Nothing previously closed these. The process dying takes the sockets
+        # with it, so it never showed in production -- but it leaks a
+        # connection per app in the tests, and a graceful shutdown should hand
+        # the database back its connections rather than have them time out.
+        database = getattr(_app.state, "database", None)
+        if database is not None:
+            await database.dispose()
+        cache = getattr(_app.state, "cache", None)
+        if cache is not None:
+            await cache.aclose()
+
     app = FastAPI(
+        lifespan=lifespan,
         title="Car Maintenance Companion API",
         version=settings.version,
         root_path=settings.root_path,
@@ -48,6 +67,14 @@ def create_app(
         database = Database(settings.database_url)
         app.state.database = database
         readiness.register("database", database.is_healthy)
+
+    # Same reasoning as the database: readiness, never liveness. An instance
+    # that cannot reach Redis cannot enqueue work or enforce a rate limit, so
+    # it should leave the Service endpoints rather than half-serve requests.
+    if settings.redis_url:
+        cache = RedisHealth(build_client(settings.redis_url))
+        app.state.cache = cache
+        readiness.register("redis", cache.is_healthy)
 
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health.router)
