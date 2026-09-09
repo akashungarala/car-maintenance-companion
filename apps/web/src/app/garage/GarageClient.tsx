@@ -1,13 +1,16 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 
 import { apiUrl } from '../../lib/api';
+import type { Vehicle } from '../../lib/vehicles';
+import { VehicleList } from './VehicleList';
 
 type State =
   | { kind: 'loading' }
-  | { kind: 'signed-in'; email: string }
+  | { kind: 'signed-in'; email: string; vehicles: Vehicle[] }
   | { kind: 'error' }
   | { kind: 'leaving' };
 
@@ -35,22 +38,31 @@ export function GarageClient() {
 
     void (async () => {
       try {
-        const response = await fetch(apiUrl('/auth/me'), { credentials: 'same-origin' });
+        // Both at once. Fetching identity, waiting, then fetching vehicles
+        // would make every visit two round trips deep for no reason — and the
+        // page cannot render usefully until both have answered anyway.
+        const [me, garage] = await Promise.all([
+          fetch(apiUrl('/auth/me'), { credentials: 'same-origin' }),
+          fetch(apiUrl('/vehicles'), { credentials: 'same-origin' }),
+        ]);
         if (cancelled) return;
 
-        if (response.status === 401) {
+        if (me.status === 401 || garage.status === 401) {
           router.replace('/signin');
           return;
         }
-        if (!response.ok) {
+        if (!me.ok || !garage.ok) {
           // Only a 401 means "not signed in". Anything else is the server
           // having a bad moment, and bouncing to sign-in would loop the user.
           setState({ kind: 'error' });
           return;
         }
 
-        const body = (await response.json()) as { email: string };
-        if (!cancelled) setState({ kind: 'signed-in', email: body.email });
+        const [user, vehicles] = (await Promise.all([me.json(), garage.json()])) as [
+          { email: string },
+          Vehicle[],
+        ];
+        if (!cancelled) setState({ kind: 'signed-in', email: user.email, vehicles });
       } catch {
         if (!cancelled) setState({ kind: 'error' });
       }
@@ -118,25 +130,41 @@ export function GarageClient() {
             Signed in as <strong>{state.kind === 'signed-in' ? state.email : ''}</strong>
           </p>
         )}
-        <button
-          type="button"
-          onClick={() => void signOut()}
-          disabled={state.kind === 'leaving'}
-          className="shrink-0 rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-neutral-700"
-        >
-          Sign out
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          {state.kind === 'signed-in' && state.vehicles.length > 0 ? (
+            <Link
+              href="/apps/car-maintenance-companion/garage/add"
+              className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
+            >
+              Add a vehicle
+            </Link>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => void signOut()}
+            disabled={state.kind === 'leaving'}
+            className="rounded-lg border border-neutral-300 px-3 py-2 text-sm font-medium disabled:opacity-50 dark:border-neutral-700"
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
-      <div className="px-4 py-12 text-center">
-        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-2xl dark:bg-neutral-800">
-          🚗
+      {loading ? (
+        // Two skeleton cards, not a spinner: the shape of what is coming is
+        // known, and showing it makes the wait read as loading rather than as
+        // nothing happening.
+        <div aria-busy="true" className="divide-y divide-neutral-200 dark:divide-neutral-800">
+          {[0, 1].map((row) => (
+            <div key={row} aria-hidden="true" className="space-y-2 px-4 py-4">
+              <div className="h-4 w-32 animate-pulse rounded bg-neutral-200 motion-reduce:animate-none dark:bg-neutral-700" />
+              <div className="h-3 w-40 animate-pulse rounded bg-neutral-100 motion-reduce:animate-none dark:bg-neutral-800" />
+            </div>
+          ))}
         </div>
-        <h2 className="mt-3 text-base font-semibold">Your garage is empty</h2>
-        <p className="mx-auto mt-1 max-w-sm text-sm text-neutral-600 dark:text-neutral-400">
-          Adding a vehicle is coming next. For now, this page exists to prove you are signed in.
-        </p>
-      </div>
+      ) : (
+        <VehicleList vehicles={state.kind === 'signed-in' ? state.vehicles : []} />
+      )}
     </div>
   );
 }
