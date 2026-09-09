@@ -12,6 +12,7 @@ from typing import Any
 
 import structlog
 
+from app import metrics as job_metrics
 from app.queue import DEAD_LETTER_KEY, DEAD_LETTER_MAX, JobOutcome
 
 logger = structlog.get_logger()
@@ -60,6 +61,9 @@ async def record_dead_letter(ctx: dict[str, Any], outcome: JobOutcome) -> None:
         function=outcome.function,
         attempts=ctx.get("job_try"),
     )
+    # The list is trimmed to a hundred entries, so its length stops being a
+    # total. Only a counter can answer "has anything given up since the deploy".
+    job_metrics.record_dead_letter(outcome.function)
 
 
 def with_dead_letter(
@@ -75,8 +79,11 @@ def with_dead_letter(
 
     @functools.wraps(func)
     async def wrapper(ctx: dict[str, Any], **kwargs: Any) -> Any:
+        # Wraps every job, so timing here covers all of them without each one
+        # remembering to instrument itself.
         try:
-            return await func(ctx, **kwargs)
+            with job_metrics.record_job(func.__name__):
+                return await func(ctx, **kwargs)
         except Exception as exc:
             if int(ctx.get("job_try", 1)) >= max_tries:
                 await record_dead_letter(ctx, JobOutcome(function=func.__name__, error=str(exc)))

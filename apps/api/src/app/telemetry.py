@@ -40,6 +40,35 @@ _metrics_configured = False
 # without it p95 must be interpolated across whichever bucket contains it.
 HISTOGRAM_BUCKETS = (5.0, 25.0, 100.0, 250.0, 1500.0, 5000.0)
 
+# Also milliseconds, and deliberately different from the HTTP boundaries: jobs
+# are allowed to take seconds where a request is not. The top boundary is the
+# worker's job_timeout, so "hit the timeout" is its own bucket rather than
+# being averaged in with merely slow work.
+JOB_BUCKETS = (10.0, 100.0, 1000.0, 5000.0, 30000.0, 120000.0)
+
+
+def metric_views() -> list[View]:
+    """The views, shared by the real provider and the tests.
+
+    Tests build their own provider; without this they would silently get the
+    SDK default buckets and prove nothing about what production records.
+    """
+    return [
+        View(
+            instrument_name="http.server.duration",
+            aggregation=ExplicitBucketHistogramAggregation(HISTOGRAM_BUCKETS),
+        ),
+        View(
+            instrument_name="job.duration",
+            aggregation=ExplicitBucketHistogramAggregation(JOB_BUCKETS),
+        ),
+        # Dropped, not re-bucketed. We never ask a question that response-size
+        # percentiles answer, and each histogram costs seven series per label
+        # combination against a 10,000 cap.
+        View(instrument_name="http.server.response.size", aggregation=DropAggregation()),
+        View(instrument_name="http.server.request.size", aggregation=DropAggregation()),
+    ]
+
 
 def _resource(settings: Settings) -> Resource:
     return Resource.create(
@@ -60,19 +89,7 @@ def build_meter_provider(settings: Settings, *, reader: MetricReader) -> MeterPr
     return MeterProvider(
         resource=_resource(settings),
         metric_readers=[reader],
-        views=[
-            View(
-                instrument_name="http.server.duration",
-                aggregation=ExplicitBucketHistogramAggregation(HISTOGRAM_BUCKETS),
-            ),
-            # Dropped, not re-bucketed. We never ask a question that
-            # response-size percentiles answer, and each histogram costs seven
-            # series per label combination against a 10,000 cap. A single
-            # instrument_type=Histogram view would also have applied the
-            # latency boundaries to these, bucketing bytes by milliseconds.
-            View(instrument_name="http.server.response.size", aggregation=DropAggregation()),
-            View(instrument_name="http.server.request.size", aggregation=DropAggregation()),
-        ],
+        views=metric_views(),
     )
 
 
@@ -138,6 +155,20 @@ def flush_tracing(timeout_millis: int = 5000) -> None:
     provider = trace.get_tracer_provider()
     force_flush = getattr(provider, "force_flush", None)
     if force_flush is not None:  # a no-op provider when tracing is unconfigured
+        force_flush(timeout_millis)
+
+
+def flush_metrics(timeout_millis: int = 5000) -> None:
+    """Export anything the metric reader is still holding.
+
+    The periodic reader exports on a 30-second timer. The heartbeat CronJob
+    records queue depth and exits long before that, so without this the gauge
+    is recorded correctly and then thrown away -- leaving the queue-depth alert
+    blind at precisely the moment the queue is backing up.
+    """
+    provider = metrics.get_meter_provider()
+    force_flush = getattr(provider, "force_flush", None)
+    if force_flush is not None:  # a no-op provider when metrics are unconfigured
         force_flush(timeout_millis)
 
 
