@@ -261,5 +261,10 @@ kubectl run -n cmc certcheck --rm -i --restart=Never --image=curlimages/curl:8.1
   https://garage-api.akashungarala.com/health
 ```
 
-`0` means trusted. Anything else means switching the zone to Full (strict)
-would take the site down.
+`0` means trusted. Anything else means the zone is already on Full (strict)
+and the site is about to break — Cloudflare returns **526** when it rejects an
+origin certificate, and **525** when the TLS handshake itself fails.
+
+The zone has been on Full (strict) since 2026-09-09, so this check is no longer
+hypothetical: let the certificate lapse or serve the wrong one and the site
+goes down immediately, everywhere.
