@@ -344,6 +344,26 @@ def database() -> dict[str, Any]:
                 "usually the first visible symptom of a job that forgot to commit.",
             ),
             _panel(
+                "Origin certificate: days remaining",
+                "stat",
+                [
+                    {
+                        "expr": "(min(certmanager_certificate_expiration_timestamp_seconds) "
+                        "- time()) / 86400"
+                    }
+                ],
+                (24, 4, 0, 12),
+                unit="d",
+                description="The zone is on Full (strict), so Cloudflare verifies this "
+                "certificate on every connection. Expiry is not a degradation -- Cloudflare "
+                "returns 526 and stops proxying entirely. cert-manager renews at 30 days.",
+                thresholds=[
+                    {"color": "red", "value": None},
+                    {"color": "yellow", "value": 14},
+                    {"color": "green", "value": 25},
+                ],
+            ),
+            _panel(
                 "WAL archive failures",
                 "timeseries",
                 [
@@ -352,7 +372,7 @@ def database() -> dict[str, Any]:
                         "legendFormat": "failures/hour",
                     }
                 ],
-                (24, 6, 0, 12),
+                (24, 6, 0, 16),
                 description="WAL archiving is what makes point-in-time recovery possible. "
                 "Failures here mean the backup is quietly becoming less recoverable.",
             ),
