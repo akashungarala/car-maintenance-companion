@@ -10,4 +10,4 @@ resources:
 # API always run the same build.
 images:
   - name: ghcr.io/akashungarala/car-maintenance-companion/api
-    newTag: 2d8ef5be7e11472600e435562bc8cd51aca2a2ef
+    newTag: 463df291f6b58f156e7c4b59741b794b1dbb3fce
