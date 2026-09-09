@@ -109,3 +109,44 @@ class MaintenanceItem(Base):
     __table_args__ = (
         CheckConstraint("last_done_mileage >= 0", name="ck_items_mileage_non_negative"),
     )
+
+
+class ServiceRecord(Base):
+    """Something that was actually done, and when.
+
+    History rather than only the latest state. "When did I last do this?" is a
+    question people ask standing on a garage forecourt, and the answer is worth
+    more than the storage it costs.
+    """
+
+    __tablename__ = "service_records"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    vehicle_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("vehicles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    maintenance_item_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("maintenance_items.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+    #: Denormalised on purpose: an item can be renamed or its intervals
+    #: changed, and history should say what was done at the time rather than
+    #: what the item happens to be called now.
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+
+    performed_at: Mapped[date] = mapped_column(Date, nullable=False)
+    odometer: Mapped[int] = mapped_column(Integer, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("odometer >= 0", name="ck_service_records_odometer_non_negative"),
+    )
