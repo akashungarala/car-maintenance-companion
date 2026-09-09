@@ -406,11 +406,18 @@ histogram buckets; and a CI check that fails above 7,000 series.
       `traceparent` the worker received
 - [x] Four dashboards live: service health, infrastructure, database, async
 - [x] Seven alerts provisioned, all evaluating `health=ok`
-- [ ] Alerts confirmed to reach Discord — the contact point and route are applied, but delivery has
-      not been proven by firing one. An alert path that has never delivered is not a working alert
-      path; this is the last open item.
+- [x] Alerts confirmed to reach Discord in both directions: a temporary rule fired, routed to
+      `receivers=['discord']` with zero delivery failures, then resolved cleanly
 - [x] Exported series count below 7,000 — **317** active, 6,683 of headroom, with a gate verified
       to fail (exit 1 below the limit, exit 2 when it cannot read the number at all)
+
+**The resolve half needed proving separately.** The first delivery test ended by _deleting_ the
+firing rule, which removes it from the alertmanager without emitting a resolved notification — the
+Discord message sat open forever. An alerting system that fires but never clears leaves you unable
+to tell a current outage from one that ended yesterday, and a contact point configured with
+`disableResolveMessage: false` is not evidence that resolution works. Proven by raising a firing
+rule's threshold so the condition cleared while the rule still existed: two notifications, zero
+failures, alert gone from the alertmanager in 20 seconds.
 
 **Deviation:** Grafana Alloy was replaced by a second OpenTelemetry Collector running as a
 DaemonSet (ADR-0013). Alloy would also have required kube-state-metrics for restart counts; the

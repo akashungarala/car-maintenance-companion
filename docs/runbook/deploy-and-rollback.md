@@ -155,3 +155,28 @@ CloudNativePG 1.30 warns that native Barman Cloud backup and recovery is **depre
 1.31.0**, in favour of the Barman Cloud Plugin. The operator is pinned, so nothing breaks until it is
 deliberately upgraded — but the migration must happen before that bump, and the restore drill is how
 it gets verified.
+
+## Testing an alert without leaving a ghost
+
+To prove an alert path end to end, create a temporary rule that fires, then **clear its condition
+while the rule still exists** — raise the threshold past the value the query returns. That produces
+a real resolved notification.
+
+Do not finish by deleting a rule while it is firing. Deletion removes it from the alertmanager
+without emitting a resolved notification, so the alert never clears: it simply stops existing.
+Discord messages are static, so the firing message stays in the channel looking like an open
+incident indefinitely. Delete the rule only once it reads `inactive`.
+
+Delivery can be checked without reading Discord:
+
+```
+grafanacloud_instance_alertmanager_notifications_total         # must increase
+grafanacloud_instance_alertmanager_notifications_failed_total  # must not
+```
+
+Both are on the `grafanacloud-usage` datasource. A firing alert routed to the wrong receiver still
+increments the first, so check the receiver too:
+
+```
+GET /api/alertmanager/grafana/api/v2/alerts   ->  receivers: ['discord']
+```
