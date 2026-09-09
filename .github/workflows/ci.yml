@@ -97,6 +97,27 @@ jobs:
       - name: Type check (mypy --strict)
         run: uv run mypy apps/api/src
 
+      # Contract testing, for the cost of one step. The frontend and backend
+      # are separate deployments in separate languages; without a checked
+      # artefact, a backend change that alters a response shape breaks the
+      # frontend at runtime, in production, and neither side's tests notice
+      # because each is internally consistent on its own.
+      #
+      # The generator version is pinned in the lockfile. A floating version
+      # would rewrite the output on an unrelated dependency bump and fail this
+      # gate for a reason that has nothing to do with the contract.
+      - name: OpenAPI contract has not drifted
+        run: |
+          set -euo pipefail
+          make openapi
+          if ! git diff --quiet -- packages/api-types/schema.d.ts; then
+            echo "::error::The API contract changed but the generated types were not committed."
+            echo "Run 'make openapi' and commit packages/api-types/schema.d.ts."
+            git --no-pager diff -- packages/api-types/schema.d.ts
+            exit 1
+          fi
+          echo "contract types are up to date"
+
       - name: Tests + coverage gate
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
