@@ -121,3 +121,36 @@ async def me(request: Request) -> dict[str, str]:
     if user is None:
         raise HTTPException(status_code=401, detail="Not signed in")
     return {"id": str(user.id), "email": user.email}
+
+
+@router.delete("/session", status_code=204, summary="Sign out")
+async def delete_session(request: Request, response: Response) -> Response:
+    """End the session.
+
+    Revokes server-side rather than only clearing the cookie: a cleared cookie
+    leaves a valid session behind, usable by anyone who captured it and
+    impossible to end from a device you no longer have. This is what sessions
+    being rows is for.
+
+    Always 204. Signing out twice, or with a cookie that already expired, is
+    ordinary rather than exceptional -- and a sign-out that can fail is a
+    sign-out people stop trusting.
+    """
+    settings = request.app.state.settings
+    raw = request.cookies.get(settings.session_cookie_name)
+
+    if raw:
+        async with request.app.state.database.session() as session:
+            await SessionService(session).revoke(raw)
+
+    # Cleared on the same path it was set on. A mismatch leaves the original
+    # cookie in place and the browser still believes it is signed in.
+    response.delete_cookie(
+        key=settings.session_cookie_name,
+        path=settings.session_cookie_path,
+        httponly=True,
+        samesite="lax",
+        secure=settings.session_cookie_secure,
+    )
+    response.status_code = 204
+    return response
