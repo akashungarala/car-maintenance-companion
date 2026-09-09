@@ -10,6 +10,14 @@ metadata:
     # silently matches nothing and the headers just never appear.
     traefik.ingress.kubernetes.io/router.middlewares: cmc-security-headers@kubernetescrd
 spec:
+  # Traefik served a self-signed certificate before this, which Cloudflare
+  # accepted because the zone is on Full rather than Full (strict). Encrypted,
+  # but unverified: Cloudflare could not distinguish this origin from anything
+  # else answering on the address.
+  tls:
+    - hosts:
+        - garage-api.akashungarala.com
+      secretName: garage-api-tls
   rules:
     - host: garage-api.akashungarala.com
       http:

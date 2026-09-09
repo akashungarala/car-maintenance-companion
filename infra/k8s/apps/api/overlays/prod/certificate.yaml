@@ -1,0 +1,27 @@
+# The origin's certificate, so Cloudflare can verify what it is connecting to
+# rather than merely encrypting to it.
+#
+# Issued by Let's Encrypt over DNS-01. Verified against the staging issuer
+# first: production allows five failed validations per hour, and a
+# misconfigured solver burns that allowance before the fix can be checked.
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: garage-api-tls
+spec:
+  secretName: garage-api-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - garage-api.akashungarala.com
+  # cert-manager renews at two-thirds of the lifetime by default; being
+  # explicit means a change to that default cannot silently shorten the margin.
+  # Thirty days leaves room for a failed renewal to be noticed and fixed.
+  duration: 2160h # 90d, Let's Encrypt's maximum
+  renewBefore: 720h # 30d
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # Rotate the key on every renewal rather than reusing it for years.
+    rotationPolicy: Always
