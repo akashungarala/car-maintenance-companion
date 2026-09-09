@@ -38,7 +38,30 @@ not a rewrite.
 
 **Reversal cost:** hours, by design.
 
-## Observed cost, 2026-09-09
+## Observed cost, 2026-09-09 and 2026-09-10
+
+**Corrected 2026-09-10.** The first version of this note said frontend changes "stall for up to a
+day". That was too gentle, and it was based on reading the wrong signal.
+
+The limit applies to **production** deployments only. Preview deployments from pull requests keep
+working, so every PR check reports `Vercel: pass — Deployment has completed` and the frontend
+appears to be shipping. It is not. The production alias -- which the portfolio proxies to -- stays
+pinned to whatever deployed before the limit was hit.
+
+That combination is the problem: a green check on every pull request, a stale site, and nothing
+anywhere saying so. It was found by loading the live page and noticing it showed a screen from two
+epics ago, not by any alert or failing build. The signal that would have said so is on the _main_
+commit rather than the PR:
+
+```
+gh api repos/<owner>/<repo>/commits/<sha>/status
+  Vercel: failure — Deployment rate limited — retry in 24 hours.
+```
+
+Worse, every merge re-attempts and re-fails, so a project that merges small PRs often -- which this
+one does deliberately -- may never leave the window.
+
+## Original note
 
 Vercel Hobby rate-limits **deployments**, not just bandwidth. During E2 the account was locked out
 for 24 hours after a day of ordinary work — every merge to `main` triggers a frontend deployment,
