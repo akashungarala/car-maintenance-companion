@@ -10,4 +10,4 @@ rather than a rewrite — see docs/adr/0005-modular-monolith-not-microservices.m
 None of these exist yet. Phase 0 ships infrastructure only.
 """
 
-__version__ = "0.1.1"
+__version__ = "0.1.2"
