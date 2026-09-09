@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useCallback, useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 
 import { apiUrl } from '../../lib/api';
 
@@ -24,33 +24,42 @@ export function GarageClient() {
   const router = useRouter();
   const [state, setState] = useState<State>({ kind: 'loading' });
 
-  // No setState({kind:'loading'}) here. The initial state is already loading,
-  // and setting it synchronously inside the effect that calls this triggers a
-  // cascading render. The retry path sets it explicitly instead, which is the
-  // only case where the state is not already loading.
-  const load = useCallback(async () => {
-    try {
-      const response = await fetch(apiUrl('/auth/me'), { credentials: 'same-origin' });
-      if (response.status === 401) {
-        router.replace('/signin');
-        return;
-      }
-      if (!response.ok) {
-        // Only a 401 means "not signed in". Anything else is the server having
-        // a bad moment, and bouncing to sign-in would loop the user.
-        setState({ kind: 'error' });
-        return;
-      }
-      const body = (await response.json()) as { email: string };
-      setState({ kind: 'signed-in', email: body.email });
-    } catch {
-      setState({ kind: 'error' });
-    }
-  }, [router]);
+  // Bumped by the retry button to re-run the effect. The alternative -- a
+  // useCallback the effect calls -- reads as setState-inside-an-effect to the
+  // linter, and it is not wrong to be suspicious: the difference between safe
+  // and cascading here is only that the writes happen after an await.
+  const [attempt, setAttempt] = useState(0);
 
   useEffect(() => {
-    void load();
-  }, [load]);
+    let cancelled = false;
+
+    void (async () => {
+      try {
+        const response = await fetch(apiUrl('/auth/me'), { credentials: 'same-origin' });
+        if (cancelled) return;
+
+        if (response.status === 401) {
+          router.replace('/signin');
+          return;
+        }
+        if (!response.ok) {
+          // Only a 401 means "not signed in". Anything else is the server
+          // having a bad moment, and bouncing to sign-in would loop the user.
+          setState({ kind: 'error' });
+          return;
+        }
+
+        const body = (await response.json()) as { email: string };
+        if (!cancelled) setState({ kind: 'signed-in', email: body.email });
+      } catch {
+        if (!cancelled) setState({ kind: 'error' });
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [attempt, router]);
 
   async function signOut() {
     setState({ kind: 'leaving' });
@@ -78,7 +87,7 @@ export function GarageClient() {
           type="button"
           onClick={() => {
             setState({ kind: 'loading' });
-            void load();
+            setAttempt((n) => n + 1);
           }}
           className="mt-4 rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
         >
