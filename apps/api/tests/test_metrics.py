@@ -31,15 +31,60 @@ def test_configure_metrics_is_a_no_op_without_an_endpoint() -> None:
     configure_metrics(Settings(environment="test"))  # must not raise
 
 
-def test_histogram_buckets_are_bounded() -> None:
+def test_histogram_buckets_are_bounded_and_in_milliseconds() -> None:
     """Each bucket is a series, per label combination.
 
-    The SDK default is fourteen boundaries. Six chosen ones cover the range we
-    actually alert on (p95 > 1.5s) at less than half the series cost.
+    The SDK default is fourteen boundaries; six cover what we alert on at under
+    half the series cost.
+
+    The unit matters more than the count. The instrument records
+    http.server.duration in *milliseconds* -- Grafana receives it as
+    http_server_duration_milliseconds -- so seconds-shaped boundaries put a
+    5ms ceiling on a histogram measuring requests that take tens or hundreds of
+    milliseconds. Everything lands in +Inf, p95 becomes unusable, and the
+    "p95 > 1.5s" alert can never fire correctly.
     """
     assert len(HISTOGRAM_BUCKETS) == 6
     assert list(HISTOGRAM_BUCKETS) == sorted(HISTOGRAM_BUCKETS), "buckets must ascend"
-    assert 1.5 in HISTOGRAM_BUCKETS, "the latency alert threshold needs its own boundary"
+    assert 1500 in HISTOGRAM_BUCKETS, (
+        "the latency alert fires at p95 > 1.5s, which in milliseconds is 1500. "
+        "Without a boundary there, p95 is interpolated across whatever bucket "
+        "contains the threshold."
+    )
+    assert max(HISTOGRAM_BUCKETS) >= 1500, (
+        "the top boundary is below the alert threshold, so every slow request "
+        "is indistinguishable from every other slow request"
+    )
+
+
+async def test_size_histograms_are_dropped() -> None:
+    """We never ask a question that response-size percentiles answer.
+
+    Each one costs seven series per label combination, against a 10,000 cap.
+    """
+    reader = InMemoryMetricReader()
+    provider = build_meter_provider(Settings(environment="test"), reader=reader)
+
+    app = FastAPI()
+
+    @app.get("/vehicles/{vehicle_id}")
+    async def _vehicle(vehicle_id: str) -> dict[str, str]:
+        return {"id": vehicle_id}
+
+    from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+    FastAPIInstrumentor.instrument_app(app, meter_provider=provider)
+
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        await client.get("/vehicles/abc")
+
+    names = {metric.name for metric in _collect(reader)}
+    assert not [name for name in names if "size" in name], (
+        f"size histograms are still being exported: {sorted(names)}"
+    )
+
+    FastAPIInstrumentor.uninstrument_app(app)
 
 
 async def test_request_metrics_never_label_on_raw_paths() -> None:
