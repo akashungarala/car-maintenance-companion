@@ -66,6 +66,15 @@ class Settings(BaseSettings):
     resend_api_key: str | None = None
     email_from: str = "Car Maintenance Companion <garage@send.akashungarala.com>"
 
+    session_cookie_name: str = "cmc_session"
+    #: Scoped to the application's path. The API and the frontend share an
+    #: origin through the portfolio prefix, so a cookie set at "/" would also
+    #: be sent to every other application on that domain.
+    session_cookie_path: str = "/apps/car-maintenance-companion"
+    #: Off only for local HTTP development. A cookie without Secure is sent
+    #: over plain HTTP, which is exactly how session tokens get captured.
+    session_cookie_secure: bool = True
+
     # Unset in Phase 0 and in most tests: the service ran without a database at
     # all, and must keep being able to. When set, a readiness check is
     # registered for it — but never a liveness check.

@@ -1,12 +1,12 @@
 """Authentication endpoints."""
 
 import structlog
-from fastapi import APIRouter, Request, status
+from fastapi import APIRouter, HTTPException, Request, Response, status
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, EmailStr
+from pydantic import BaseModel, EmailStr, Field
 
 from app import metrics as app_metrics
-from app.identity.service import IdentityService
+from app.identity.service import IdentityService, SessionService
 from app.queue import enqueue_magic_link_email
 
 logger = structlog.get_logger()
@@ -59,3 +59,65 @@ async def request_magic_link(payload: MagicLinkRequest, request: Request) -> JSO
         status_code=status.HTTP_202_ACCEPTED,
         content={"status": "accepted"},
     )
+
+
+class SessionRequest(BaseModel):
+    token: str = Field(min_length=16, max_length=256)
+
+
+@router.post("/session", summary="Exchange a sign-in link for a session")
+async def create_session(
+    payload: SessionRequest, request: Request, response: Response
+) -> dict[str, str]:
+    """Spend the link and sign the browser in.
+
+    A POST, not a GET on the link itself. Mail scanners prefetch URLs, and a
+    GET that consumed the token would let a scanner spend it before the user
+    ever clicked -- which presents as "this link has expired" seconds after it
+    arrived.
+    """
+    settings = request.app.state.settings
+    database = request.app.state.database
+
+    async with database.session() as session:
+        user = await IdentityService(session).consume_token(payload.token)
+        if user is None:
+            # One response for expired, already used, never existed and
+            # tampered with. Distinguishing them tells an attacker which tokens
+            # once existed, and none of the four changes what the user does.
+            raise HTTPException(status_code=401, detail="This link cannot be used")
+        raw_session, record = await SessionService(session).create(user.id)
+
+    response.set_cookie(
+        key=settings.session_cookie_name,
+        value=raw_session,
+        max_age=int((record.expires_at - record.created_at).total_seconds())
+        if record.created_at
+        else 30 * 24 * 3600,
+        # HttpOnly keeps it away from JavaScript, so an XSS bug cannot read it.
+        httponly=True,
+        # Lax stops another site's form from acting as this user, while still
+        # allowing the ordinary top-level navigation that arrives from email.
+        samesite="lax",
+        secure=settings.session_cookie_secure,
+        path=settings.session_cookie_path,
+    )
+    # The token is in the cookie and nowhere else. Returning it in the body
+    # would put it within reach of JavaScript, which is what HttpOnly exists
+    # to prevent.
+    return {"status": "signed_in"}
+
+
+@router.get("/me", summary="The signed-in user")
+async def me(request: Request) -> dict[str, str]:
+    settings = request.app.state.settings
+    raw = request.cookies.get(settings.session_cookie_name)
+    if not raw:
+        raise HTTPException(status_code=401, detail="Not signed in")
+
+    async with request.app.state.database.session() as session:
+        user = await SessionService(session).resolve(raw)
+
+    if user is None:
+        raise HTTPException(status_code=401, detail="Not signed in")
+    return {"id": str(user.id), "email": user.email}
