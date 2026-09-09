@@ -1,0 +1,175 @@
+# The frontend, in the cluster.
+#
+# It ran on Vercel Hobby until 2026-09-10, when the production deployment rate
+# limit turned out to be silent: previews kept passing their checks while the
+# production alias stayed pinned to a build two epics old (ADR-0007). A
+# deployment path that can be stale while every check is green eventually ships
+# a bug nobody can reproduce, because the users are running different code.
+#
+# This also collapses two deployment cadences into one. A frontend change and a
+# backend change can now land together.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: web
+  labels:
+    app.kubernetes.io/name: web
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: web
+    spec:
+      containers:
+        - name: web
+          image: ghcr.io/akashungarala/car-maintenance-companion/web
+          ports:
+            - name: http
+              containerPort: 3000
+          env:
+            - name: NODE_ENV
+              value: production
+            # Relative, so the browser calls the same origin it loaded from and
+            # no CORS policy has to exist.
+            - name: NEXT_PUBLIC_API_BASE
+              value: /api
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              memory: 320Mi
+          # Next serves a 200 on any valid route; the sign-in page is the
+          # cheapest one that proves the app booted rather than that the port
+          # is open.
+          livenessProbe:
+            httpGet:
+              path: /apps/car-maintenance-companion/signin
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /apps/car-maintenance-companion/signin
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          startupProbe:
+            httpGet:
+              path: /apps/car-maintenance-companion/signin
+              port: http
+            failureThreshold: 30
+            periodSeconds: 2
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 10001
+            readOnlyRootFilesystem: true
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            # Next writes its image cache here even when unused; a read-only
+            # root filesystem otherwise fails at startup.
+            - name: cache
+              mountPath: /app/apps/web/.next/cache
+      volumes:
+        - name: cache
+          emptyDir: {}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: web
+spec:
+  selector:
+    app.kubernetes.io/name: web
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+---
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: garage-tls
+spec:
+  secretName: garage-tls
+  issuerRef:
+    name: letsencrypt-prod
+    kind: ClusterIssuer
+  dnsNames:
+    - garage.akashungarala.com
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    rotationPolicy: Always
+---
+apiVersion: traefik.io/v1alpha1
+kind: Middleware
+metadata:
+  name: strip-api-prefix
+spec:
+  # The API is mounted under the app's prefix so the browser calls one origin
+  # and no CORS policy has to exist. FastAPI's root_path fixes up the URLs in
+  # its docs but does not strip the prefix from incoming requests -- the proxy
+  # in front is expected to, which is exactly what the portfolio does today.
+  stripPrefix:
+    prefixes:
+      - /apps/car-maintenance-companion/api
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web-api
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    # Order matters between these two Ingresses only because Traefik sorts
+    # rules by path length: the longer, more specific API prefix wins over the
+    # app's "/" without anything having to declare a priority.
+    traefik.ingress.kubernetes.io/router.middlewares: cmc-strip-api-prefix@kubernetescrd,cmc-security-headers@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - garage.akashungarala.com
+      secretName: garage-tls
+  rules:
+    - host: garage.akashungarala.com
+      http:
+        paths:
+          - path: /apps/car-maintenance-companion/api
+            pathType: Prefix
+            backend:
+              service:
+                name: api
+                port:
+                  name: http
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: web
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.middlewares: cmc-security-headers@kubernetescrd
+spec:
+  tls:
+    - hosts:
+        - garage.akashungarala.com
+      secretName: garage-tls
+  rules:
+    - host: garage.akashungarala.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: web
+                port:
+                  name: http
