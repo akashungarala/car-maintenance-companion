@@ -6,6 +6,7 @@ namespace: cmc
 resources:
   - ../../base
   - ingress.yaml
+  - security-headers.yaml
   - hpa.yaml
   - migration-job.yaml
 
