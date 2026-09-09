@@ -12,8 +12,18 @@ import { CallbackClient } from './CallbackClient';
 
 const ENDPOINT = '/apps/car-maintenance-companion/api/auth/session';
 
-const replace = vi.fn();
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }));
+// vi.hoisted, because vi.mock is lifted above the imports and its factory
+// cannot reach a const declared below it.
+//
+// The router object is created once, not per render. Real useRouter is stable;
+// returning a fresh object each time changes the identity of everything that
+// depends on it, which re-runs effects forever — a mistake that presents as
+// the test runner exhausting its heap rather than as a failing assertion.
+const { replace, router } = vi.hoisted(() => {
+  const replaceFn = vi.fn();
+  return { replace: replaceFn, router: { replace: replaceFn } };
+});
+vi.mock('next/navigation', () => ({ useRouter: () => router }));
 
 describe('CallbackClient', () => {
   it('exchanges the token without any user action', async () => {

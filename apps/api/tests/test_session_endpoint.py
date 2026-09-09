@@ -174,3 +174,49 @@ async def test_me_with_a_revoked_session_is_401(app) -> None:  # type: ignore[no
         me = await client.get("/auth/me")
 
     assert me.status_code == 401
+
+
+async def test_signing_out_revokes_the_session(app) -> None:  # type: ignore[no-untyped-def]
+    """Server-side revocation, not just a cleared cookie.
+
+    Clearing the cookie alone leaves a valid session behind: usable by anyone
+    who captured it, and impossible to end from a device you no longer have.
+    """
+    token = await _issue(app)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        await client.post("/auth/session", json={"token": token})
+        captured = client.cookies["cmc_session"]
+
+        signed_out = await client.delete("/auth/session")
+
+        # Replay the captured cookie as an attacker would, on a fresh client
+        # that never saw the Set-Cookie clearing it.
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as attacker:
+            attacker.cookies.set("cmc_session", captured)
+            replayed = await attacker.get("/auth/me")
+
+    assert signed_out.status_code == 204
+    assert replayed.status_code == 401, "the session survived sign-out"
+
+
+async def test_signing_out_clears_the_cookie(app) -> None:  # type: ignore[no-untyped-def]
+    token = await _issue(app)
+
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        await client.post("/auth/session", json={"token": token})
+        response = await client.delete("/auth/session")
+
+    header = response.headers.get("set-cookie", "")
+    # The cookie must be cleared on the same path it was set on, or the browser
+    # keeps the original and the user stays signed in.
+    assert "cmc_session=" in header
+    assert "max-age=0" in header.lower() or "expires=" in header.lower()
+
+
+async def test_signing_out_without_a_session_is_not_an_error(app) -> None:  # type: ignore[no-untyped-def]
+    """Signing out twice, or with an expired cookie, is ordinary."""
+    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://t") as client:
+        response = await client.delete("/auth/session")
+
+    assert response.status_code == 204

@@ -69,7 +69,20 @@ export interface paths {
      *     arrived.
      */
     post: operations['create_session_auth_session_post'];
-    delete?: never;
+    /**
+     * Sign out
+     * @description End the session.
+     *
+     *     Revokes server-side rather than only clearing the cookie: a cleared cookie
+     *     leaves a valid session behind, usable by anyone who captured it and
+     *     impossible to end from a device you no longer have. This is what sessions
+     *     being rows is for.
+     *
+     *     Always 204. Signing out twice, or with a cookie that already expired, is
+     *     ordinary rather than exceptional -- and a sign-out that can fail is a
+     *     sign-out people stop trusting.
+     */
+    delete: operations['delete_session_auth_session_delete'];
     options?: never;
     head?: never;
     patch?: never;
@@ -240,6 +253,24 @@ export interface operations {
         content: {
           'application/json': components['schemas']['HTTPValidationError'];
         };
+      };
+    };
+  };
+  delete_session_auth_session_delete: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      204: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content?: never;
       };
     };
   };
