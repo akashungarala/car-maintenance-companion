@@ -76,9 +76,9 @@ describe('VehicleList', () => {
     render(<VehicleList vehicles={[civic]} />);
 
     // The whole card is the target: on a phone that is what the thumb aims at.
-    expect(screen.getByRole('link', { name: /the civic/i })).toHaveAttribute(
-      'href',
-      '/apps/car-maintenance-companion/garage/v1',
-    );
+    // Base-path relative: next/link adds the prefix. Asserting the full path
+    // here is what let a doubled prefix ship — jsdom does not apply basePath,
+    // so the test agreed with the broken value.
+    expect(screen.getByRole('link', { name: /the civic/i })).toHaveAttribute('href', '/garage/v1');
   });
 });

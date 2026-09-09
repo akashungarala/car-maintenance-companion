@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 
@@ -68,12 +69,16 @@ export function CallbackClient({ token }: { token: string | undefined }) {
         <p className="mt-1.5 text-sm text-neutral-600 dark:text-neutral-400">
           Sign-in links work once and expire after 15 minutes.
         </p>
-        <a
-          href="/apps/car-maintenance-companion/signin"
+        {/* A Link with a base-path relative href, like every other internal
+            navigation here. A plain anchor with the full path also works, and
+            being the only one of its kind is how somebody converts it to a
+            Link later and doubles the prefix. */}
+        <Link
+          href="/signin"
           className="mt-4 inline-block rounded-lg bg-neutral-900 px-4 py-2.5 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
         >
           Request a new link
-        </a>
+        </Link>
       </div>
     );
   }

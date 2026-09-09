@@ -133,7 +133,7 @@ export function GarageClient() {
         <div className="flex shrink-0 items-center gap-2">
           {state.kind === 'signed-in' && state.vehicles.length > 0 ? (
             <Link
-              href="/apps/car-maintenance-companion/garage/add"
+              href="/garage/add"
               className="rounded-lg bg-neutral-900 px-3 py-2 text-sm font-medium text-white dark:bg-neutral-100 dark:text-neutral-900"
             >
               Add a vehicle
