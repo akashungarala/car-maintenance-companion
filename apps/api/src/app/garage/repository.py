@@ -66,6 +66,16 @@ class VehicleRepository:
             annual_mileage=annual_mileage,
         )
         self._session.add(vehicle)
+        # Flush rather than commit: the vehicle needs an id so its plan can
+        # reference it, but the two must land together. A vehicle with no plan
+        # is a garage entry that answers no questions, and it would be created
+        # by any failure between the two commits.
+        await self._session.flush()
+
+        from app.garage.plan import PlanService
+
+        await PlanService(self._session).seed(vehicle)
+
         await self._session.commit()
         await self._session.refresh(vehicle)
         return vehicle
