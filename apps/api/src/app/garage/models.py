@@ -1,9 +1,9 @@
 """Vehicle tables."""
 
 import uuid
-from datetime import datetime
+from datetime import date, datetime
 
-from sqlalchemy import CheckConstraint, DateTime, ForeignKey, Integer, String, func
+from sqlalchemy import Boolean, CheckConstraint, Date, DateTime, ForeignKey, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID as PgUUID
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -61,3 +61,51 @@ class Vehicle(Base):
     @property
     def display_name(self) -> str:
         return self.nickname or f"{self.year} {self.make} {self.model}"
+
+
+class MaintenanceItem(Base):
+    """One thing a vehicle needs, and when it was last done.
+
+    A per-vehicle row rather than a reference to a shared template. The
+    intervals are copied at creation so they can be edited for one car without
+    touching another's -- a shared table would need the copy anyway the first
+    time somebody changed an interval, and would add a join to every plan
+    query until then.
+    """
+
+    __tablename__ = "maintenance_items"
+
+    id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True), primary_key=True, default=uuid.uuid4
+    )
+    vehicle_id: Mapped[uuid.UUID] = mapped_column(
+        PgUUID(as_uuid=True),
+        ForeignKey("vehicles.id", ondelete="CASCADE"),
+        nullable=False,
+        index=True,
+    )
+
+    name: Mapped[str] = mapped_column(String(64), nullable=False)
+    #: Either may be null. Registration is time-only; tire rotation is
+    #: mileage-only; a car in storage never needs the latter, which is correct.
+    interval_miles: Mapped[int | None] = mapped_column(Integer)
+    interval_months: Mapped[int | None] = mapped_column(Integer)
+    #: Days, for the one item measured in weeks rather than months. Cheaper
+    #: than a third interval unit used by a single row.
+    interval_days: Mapped[int | None] = mapped_column(Integer)
+
+    last_done_at: Mapped[date] = mapped_column(Date, nullable=False)
+    last_done_mileage: Mapped[int] = mapped_column(Integer, nullable=False)
+    #: True while last_done_* is an assumption rather than something the user
+    #: told us. The interface must not present an assumption as a fact, and the
+    #: first time somebody marks this item done the flag clears.
+    is_baseline: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+
+    sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), nullable=False
+    )
+
+    __table_args__ = (
+        CheckConstraint("last_done_mileage >= 0", name="ck_items_mileage_non_negative"),
+    )

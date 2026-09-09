@@ -1,12 +1,13 @@
 """Vehicle endpoints."""
 
 import uuid
-from datetime import datetime
+from datetime import UTC, date, datetime
 
 from fastapi import APIRouter, HTTPException, Request, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.garage.models import MAX_YEAR, MIN_YEAR
+from app.garage.plan import PlanService
 from app.garage.repository import VehicleRepository
 from app.identity.dependencies import CurrentUser
 
@@ -82,3 +83,54 @@ async def get_vehicle(vehicle_id: uuid.UUID, request: Request, user: CurrentUser
     if vehicle is None:
         raise HTTPException(status_code=404, detail="Vehicle not found")
     return VehicleOut.model_validate(vehicle)
+
+
+class PlanEntryOut(BaseModel):
+    id: uuid.UUID
+    name: str
+    due_at: date | None
+    due_mileage: int | None
+    status: str
+    #: True while the last-done date is our assumption rather than the user's
+    #: fact. The interface says so; presenting an assumption as a fact is the
+    #: dishonest version of this feature.
+    is_assumed: bool
+
+
+class PlanOut(BaseModel):
+    vehicle_id: uuid.UUID
+    #: The number the user cannot otherwise get without walking outside and
+    #: reading the dashboard.
+    estimated_mileage: int
+    items: list[PlanEntryOut]
+
+
+@router.get("/{vehicle_id}/plan", summary="What this vehicle needs, and when")
+async def get_plan(vehicle_id: uuid.UUID, request: Request, user: CurrentUser) -> PlanOut:
+    async with request.app.state.database.session() as session:
+        vehicle = await VehicleRepository(session, user.id).get(vehicle_id)
+        if vehicle is None:
+            # 404 for "not yours" as well as "does not exist", for the same
+            # reason as the vehicle endpoint.
+            raise HTTPException(status_code=404, detail="Vehicle not found")
+
+        # Today is computed once, here, rather than inside the engine -- which
+        # is what keeps the engine pure and testable at any point in a
+        # vehicle's life.
+        entries = await PlanService(session).project(vehicle, today=datetime.now(UTC).date())
+
+    return PlanOut(
+        vehicle_id=vehicle.id,
+        estimated_mileage=entries[0].estimated_mileage if entries else vehicle.odometer,
+        items=[
+            PlanEntryOut(
+                id=e.id,
+                name=e.name,
+                due_at=e.due_at,
+                due_mileage=e.due_mileage,
+                status=str(e.status),
+                is_assumed=e.is_assumed,
+            )
+            for e in entries
+        ],
+    )
