@@ -466,10 +466,17 @@ existed; security headers applied at Traefik so they cover responses FastAPI nev
 blocking gate; and retries around both dependency audits, because a network reset and a
 vulnerability previously looked identical.
 
-**Still open:** cert-manager, and with it Cloudflare _Full (strict)_ origin validation. The
-Cloudflare→origin hop is encrypted today but the certificate is not verified, so Cloudflare cannot
-tell our origin from anything else that answers on that address. The origin lock makes that
-substantially harder to exploit; it does not make it verified.
+**cert-manager (deferred since F4) is done.** Let's Encrypt over DNS-01 — the only option left,
+since restricting 80/443 to Cloudflare means Let's Encrypt cannot reach the origin for an HTTP
+challenge. Verified against the staging issuer first (105s to issue), then production. The origin
+now presents a publicly trusted certificate: `ssl_verify_result=0` with full verification and
+correct SNI, which is precisely the check Cloudflare performs in _Full (strict)_.
+
+**One step remains, and it belongs to the account owner:** switch the zone's SSL/TLS mode from
+_Full_ to _Full (strict)_ in the Cloudflare dashboard. Until then the certificate is present but
+unverified — Cloudflare still cannot distinguish this origin from anything else answering on that
+address. The scoped DNS token deliberately cannot change zone settings, which is why this is a
+dashboard action rather than an automated one.
 
 ---
 

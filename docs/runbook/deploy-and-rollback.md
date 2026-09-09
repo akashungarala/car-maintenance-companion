@@ -232,3 +232,34 @@ forgeable and the rate limiter can be bypassed by anyone who sets that header.
 
 IPv4 only, deliberately: the origin has no IPv6 address, so Cloudflare always
 reaches it over IPv4 regardless of how the visitor arrived.
+
+## Origin certificate
+
+Let's Encrypt, issued by cert-manager over DNS-01, renewed automatically at 30
+days remaining. The key rotates on every renewal.
+
+```
+kubectl get certificate -n cmc
+kubectl describe certificate -n cmc garage-api-tls   # when it is not Ready
+```
+
+HTTP-01 cannot work here: 80 and 443 only accept Cloudflare, so Let's Encrypt
+cannot reach the origin to answer the challenge. Any change that moves issuance
+to HTTP-01 must also reopen the origin, which is the wrong trade.
+
+Test issuance changes against `letsencrypt-staging` first. Production allows
+five failed validations per hour, and a broken solver burns that allowance
+before the fix can be verified.
+
+To confirm the origin would pass Cloudflare _Full (strict)_ — full chain
+verification with the right SNI, which is what Cloudflare actually does:
+
+```
+kubectl run -n cmc certcheck --rm -i --restart=Never --image=curlimages/curl:8.11.1 -- \
+  curl -sS -o /dev/null -w '%{ssl_verify_result}\n' \
+  --resolve "garage-api.akashungarala.com:443:$(kubectl get svc -n kube-system traefik -o jsonpath='{.spec.clusterIP}')" \
+  https://garage-api.akashungarala.com/health
+```
+
+`0` means trusted. Anything else means switching the zone to Full (strict)
+would take the site down.
