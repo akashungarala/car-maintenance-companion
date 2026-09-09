@@ -4,11 +4,15 @@ import { expect, test } from '@playwright/test';
 const APP = '/apps/car-maintenance-companion';
 const ME = '**/api/auth/me';
 const SESSION = '**/api/auth/session';
+// The page fetches identity and vehicles together; these tests are about
+// identity, so the garage is always empty here.
+const VEHICLES = '**/api/vehicles';
 
 test('a signed-in visitor sees the address they signed in with', async ({ page }) => {
   await page.route(ME, (route) =>
     route.fulfill({ status: 200, json: { id: 'u1', email: 'sam@example.com' } }),
   );
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 200, json: [] }));
 
   await page.goto(`${APP}/garage`);
 
@@ -18,6 +22,7 @@ test('a signed-in visitor sees the address they signed in with', async ({ page }
 
 test('an unauthenticated visitor is sent to sign in', async ({ page }) => {
   await page.route(ME, (route) => route.fulfill({ status: 401, json: {} }));
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 401, json: {} }));
 
   await page.goto(`${APP}/garage`);
 
@@ -26,6 +31,7 @@ test('an unauthenticated visitor is sent to sign in', async ({ page }) => {
 
 test('a server error offers a retry rather than bouncing to sign in', async ({ page }) => {
   await page.route(ME, (route) => route.fulfill({ status: 500, json: {} }));
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 500, json: {} }));
 
   await page.goto(`${APP}/garage`);
 
@@ -38,6 +44,7 @@ test('signing out revokes server-side and returns to sign in', async ({ page }) 
   await page.route(ME, (route) =>
     route.fulfill({ status: 200, json: { id: 'u1', email: 'sam@example.com' } }),
   );
+  await page.route(VEHICLES, (route) => route.fulfill({ status: 200, json: [] }));
   await page.route(SESSION, (route) => {
     methods.push(route.request().method());
     return route.fulfill({ status: 204, body: '' });
