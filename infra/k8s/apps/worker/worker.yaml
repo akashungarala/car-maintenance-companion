@@ -49,6 +49,16 @@ spec:
                 secretKeyRef:
                   name: cmc-db-app
                   key: uri
+            # Sending-only, scoped to send.akashungarala.com. The worker sends
+            # the mail, so the credential lives here and not in the API, which
+            # only enqueues the job.
+            - name: CMC_RESEND_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: resend
+                  key: api-key
+            - name: CMC_EMAIL_FROM
+              value: Car Maintenance Companion <garage@send.akashungarala.com>
           securityContext:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
