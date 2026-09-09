@@ -1,0 +1,13 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: cmc
+
+resources:
+  - web.yaml
+
+# Rewritten by CI alongside the API and worker tags, so the whole system runs
+# one build.
+images:
+  - name: ghcr.io/akashungarala/car-maintenance-companion/web
+    newTag: latest
