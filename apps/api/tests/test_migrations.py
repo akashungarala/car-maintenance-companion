@@ -93,3 +93,41 @@ def test_every_revision_is_reachable_from_head() -> None:
     on_disk = {rev.revision for rev in script.walk_revisions()}
 
     assert on_disk == reachable, f"unreachable revisions: {on_disk - reachable}"
+
+
+async def test_migrations_match_the_models(
+    postgres_url: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """After upgrading, autogenerate must find nothing left to do.
+
+    Models and migrations are two descriptions of one schema, maintained by
+    hand. They drift silently: the models change, the code works locally
+    because tests build tables from metadata, and production runs migrations
+    that never got the column. This catches that on the pull request instead.
+    """
+    from alembic.autogenerate import compare_metadata
+    from alembic.migration import MigrationContext
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from app.identity import models as _identity  # noqa: F401  (registers tables)
+    from app.models import Base
+
+    monkeypatch.setenv("CMC_DATABASE_URL", postgres_url)
+    cfg = _config(postgres_url)
+    await _alembic(cfg, "upgrade", "head")
+
+    engine = create_async_engine(postgres_url)
+    try:
+        async with engine.connect() as conn:
+            diff = await conn.run_sync(
+                lambda sync_conn: compare_metadata(
+                    MigrationContext.configure(sync_conn), Base.metadata
+                )
+            )
+    finally:
+        await engine.dispose()
+        await _alembic(cfg, "downgrade", "base")
+
+    assert diff == [], (
+        f"the models and the migrations describe different schemas; alembic would generate: {diff}"
+    )
