@@ -5,6 +5,7 @@ namespace: cmc
 
 resources:
   - worker.yaml
+  - sealed-resend.yaml
 
 # CI rewrites this alongside the API's tag, so the worker, the CronJob and the
 # API always run the same build.

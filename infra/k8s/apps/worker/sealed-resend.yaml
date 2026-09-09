@@ -1,0 +1,13 @@
+---
+apiVersion: bitnami.com/v1alpha1
+kind: SealedSecret
+metadata:
+  name: resend
+  namespace: cmc
+spec:
+  encryptedData:
+    api-key: AgAT2hyIHMkQ/ypvL+sadzQf+lT4o2jHmegKzVLjlvW/xPG5TXOldIP3/mQxUo5OTSAiwcc6vtmhiHERY+So0MfpI1uD+c4Srf12lXj6KwQltrq6eV8d6yFMGNf6Kcy5hU+KJqce0GeL4t6gjFI3LWh38rua+psDczPufwRIWJU6NNv14DFlieaTomWAAcCPHva7A3LtAWE03W/Qvs9i3TmjAT21HZZM+fvS8Uvssi1B2yysl4zU6qLLAozHBn2QpoRwFhnHhKJWjQrThz+sEcxrgcPwixJRoI/OKHgVX5Hv/+Tk8QQXGPeUnhib2crC7UN5AEveD5OECieZ0DMlPC1aZhp+FwibFbkWYIw9n4M4b2qNjyIjWyTyP+h6Kxy8EzpKgUklQaFATzP3qpsz+T7EiEq51B2XhRncbjyRCWGyZ/G1UaRYJNg5nFc4OZLceIvynmWyqpUwdx8u6QDjlExVPoq/c3MnVJRuaLGWBmkN+/q19sAPa2oTXi+Ry9I/vyVkisH6QhksLTVMFgrwWzNV574/pmXPFl+fH7g/D26cxSnNhcRRXip2vbsNmUTTNRL82kugf+Txk1aFigqJ1r2UU1mf1HvUrhRg8gepY9f0bdGDJx/JQdcl+AaGSuQgytCtgsNUrVjXH6xMLFCxbQ2dXNIM3QNqPkrkwKSM1SKhCSGf8VErjYeiLp1MH9cnNBd90so1Syl1JYgskvRzQFMcDaVbIUnN+fvLOyQdIZva5Z5iSPM=
+  template:
+    metadata:
+      name: resend
+      namespace: cmc
