@@ -60,6 +60,12 @@ class Settings(BaseSettings):
     #: built from the request would point somewhere unreachable.
     app_base_url: str = "http://localhost:3000"
 
+    #: Sending-only, scoped to the sending domain. Absent in local development
+    #: and in tests, where the link is logged instead of sent -- so nobody needs
+    #: a credential to work on sign-in.
+    resend_api_key: str | None = None
+    email_from: str = "Car Maintenance Companion <garage@send.akashungarala.com>"
+
     # Unset in Phase 0 and in most tests: the service ran without a database at
     # all, and must keep being able to. When set, a readiness check is
     # registered for it — but never a liveness check.

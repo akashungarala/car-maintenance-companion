@@ -17,7 +17,7 @@ from app import metrics as job_metrics
 from app.logging import configure_logging
 from app.queue import build_redis_settings, queue_depth
 from app.settings import Settings
-from app.tasks import heartbeat, with_dead_letter
+from app.tasks import heartbeat, send_magic_link_email, with_dead_letter
 from app.telemetry import (
     configure_metrics,
     configure_tracing,
@@ -110,7 +110,12 @@ async def shutdown(ctx: dict[str, Any]) -> None:
 
 class WorkerSettings:
     functions: ClassVar[list[Callable[..., Any]]] = [
-        with_dead_letter(heartbeat, max_tries=MAX_TRIES)
+        with_dead_letter(heartbeat, max_tries=MAX_TRIES),
+        # Wrapped like every other job, so a provider outage retries three
+        # times and then lands in the dead-letter list -- which is counted and
+        # alerted on. A sign-in email that silently gave up would look
+        # identical to one the user never requested.
+        with_dead_letter(send_magic_link_email, max_tries=MAX_TRIES),
     ]
     redis_settings: ClassVar[RedisSettings] = _redis_settings()
     on_startup: ClassVar[Any] = startup

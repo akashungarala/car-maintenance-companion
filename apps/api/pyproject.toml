@@ -33,3 +33,8 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/app"]
+
+[dependency-groups]
+dev = [
+    "respx>=0.22",
+]

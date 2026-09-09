@@ -37,6 +37,45 @@ async def heartbeat(
         return {"status": "ok"}
 
 
+async def send_magic_link_email(
+    ctx: dict[str, Any],
+    *,
+    email: str,
+    token: str,
+    base_url: str,
+    trace_carrier: dict[str, str] | None = None,
+    sender: Any = None,
+) -> dict[str, str]:
+    """Send one sign-in link.
+
+    The token arrives in the job payload because the email is the only place it
+    may legitimately appear. It is never logged here, and no line in this
+    function includes the arguments -- adding one while debugging would put
+    working sign-in links into log storage.
+    """
+    from opentelemetry import trace
+
+    from app import metrics as job_metrics
+    from app.identity.email import build_sender
+    from app.settings import Settings
+    from app.telemetry import restore_trace_context
+
+    tracer = trace.get_tracer("app.tasks")
+    parent = restore_trace_context(trace_carrier or {})
+    with tracer.start_as_current_span("send_magic_link_email", context=parent):
+        # The API cannot infer the browser's URL: it is reached through
+        # Cloudflare, Traefik and a path prefix, so a link built from the
+        # incoming request would point somewhere unreachable.
+        link = f"{base_url.rstrip('/')}/auth/callback?token={token}"
+        active = sender if sender is not None else build_sender(Settings())
+
+        await active.send_magic_link(email=email, link=link)
+
+        job_metrics.record_email_sent("magic_link")
+        logger.info("magic_link_email_sent", job_id=ctx.get("job_id"))
+        return {"status": "sent"}
+
+
 async def record_dead_letter(ctx: dict[str, Any], outcome: JobOutcome) -> None:
     """Record a job that exhausted its retries.
 
@@ -67,8 +106,13 @@ async def record_dead_letter(ctx: dict[str, Any], outcome: JobOutcome) -> None:
 
 
 def with_dead_letter(
-    func: Callable[[dict[str, Any]], Awaitable[Any]], *, max_tries: int
-) -> Callable[[dict[str, Any]], Awaitable[Any]]:
+    # Callable[..., ] rather than a fixed signature: the wrapper forwards
+    # **kwargs, so jobs take whatever their payload carries. The narrower type
+    # described the heartbeat rather than the decorator.
+    func: Callable[..., Awaitable[Any]],
+    *,
+    max_tries: int,
+) -> Callable[..., Awaitable[Any]]:
     """Record to the dead-letter list only when retries are exhausted.
 
     Dead-lettering on every failed attempt would mean a job that succeeds on
