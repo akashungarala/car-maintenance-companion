@@ -68,23 +68,28 @@ class IdentityService:
     async def issue_token(self, email: str) -> tuple[str, MagicLinkToken]:
         """Create a link for this address, invalidating any earlier one.
 
-        Returns the raw token, which exists only in memory and in the email.
-        It is never stored, logged or returned again.
+        No user row is created here. A link can be requested for any address --
+        that is what makes the endpoint enumeration-safe -- so creating users on
+        request would let anyone fill the table with accounts for addresses they
+        do not control. The user appears when the link is consumed.
+
+        Returns the raw token, which exists only in memory and in the email. It
+        is never stored, logged, or returned again.
         """
-        user = await self.upsert_user(email)
+        normalised = self.normalise_email(email)
 
         # Any previously issued link stops working. Two live links double the
         # window in which an intercepted email is useful, and the user is only
         # ever looking at the most recent one.
         await self._session.execute(
             update(MagicLinkToken)
-            .where(MagicLinkToken.user_id == user.id, MagicLinkToken.consumed_at.is_(None))
+            .where(MagicLinkToken.email == normalised, MagicLinkToken.consumed_at.is_(None))
             .values(consumed_at=datetime.now(UTC))
         )
 
         raw = secrets.token_urlsafe(TOKEN_BYTES)
         token = MagicLinkToken(
-            user_id=user.id,
+            email=normalised,
             token_hash=hash_token(raw),
             expires_at=datetime.now(UTC) + TOKEN_LIFETIME,
         )
@@ -93,7 +98,7 @@ class IdentityService:
 
         # The address is not logged: it is a personal identifier, and this line
         # would scatter it across log storage with its own retention rules.
-        logger.info("magic_link_issued", user_id=str(user.id), expires_at=token.expires_at)
+        logger.info("magic_link_issued", expires_at=token.expires_at)
         return raw, token
 
     async def consume_token(self, raw: str) -> User | None:
@@ -116,16 +121,16 @@ class IdentityService:
                 MagicLinkToken.expires_at > now,
             )
             .values(consumed_at=now)
-            .returning(MagicLinkToken.user_id)
+            .returning(MagicLinkToken.email)
         )
         row = result.first()
         if row is None:
             await self._session.rollback()
             return None
 
-        user = (
-            await self._session.execute(select(User).where(User.id == row.user_id))
-        ).scalar_one()
+        # Control of the address is now proven, so this is where the account
+        # comes into existence. Sign-in and sign-up are the same action.
+        user = await self.upsert_user(row.email)
         user.last_signed_in_at = now
         await self._session.commit()
         logger.info("magic_link_consumed", user_id=str(user.id))

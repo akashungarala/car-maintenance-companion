@@ -4,6 +4,35 @@
  */
 
 export interface paths {
+  '/auth/magic-link': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    get?: never;
+    put?: never;
+    /**
+     * Request a sign-in link
+     * @description Send a sign-in link to an address.
+     *
+     *     Returns 202 for every well-formed address, registered or not. Anything else
+     *     turns this endpoint into a way to discover who has an account: an attacker
+     *     submits a list of addresses and reads the answers off the status codes.
+     *
+     *     202 rather than 200 is literal: the work has been accepted, not completed.
+     *     The email is sent by the worker, so holding the request open until an
+     *     external mail API answered would make sign-in latency -- and then sign-in
+     *     availability -- a function of Resend's.
+     */
+    post: operations['request_magic_link_auth_magic_link_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
   '/health': {
     parameters: {
       query?: never;
@@ -41,7 +70,34 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-  schemas: never;
+  schemas: {
+    /** HTTPValidationError */
+    HTTPValidationError: {
+      /** Detail */
+      detail?: components['schemas']['ValidationError'][];
+    };
+    /** MagicLinkRequest */
+    MagicLinkRequest: {
+      /**
+       * Email
+       * Format: email
+       */
+      email: string;
+    };
+    /** ValidationError */
+    ValidationError: {
+      /** Context */
+      ctx?: Record<string, never>;
+      /** Input */
+      input?: unknown;
+      /** Location */
+      loc: (string | number)[];
+      /** Message */
+      msg: string;
+      /** Error Type */
+      type: string;
+    };
+  };
   responses: never;
   parameters: never;
   requestBodies: never;
@@ -50,6 +106,39 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+  request_magic_link_auth_magic_link_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['MagicLinkRequest'];
+      };
+    };
+    responses: {
+      /** @description Always accepted, whether or not the address has an account */
+      202: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': unknown;
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
   health_health_get: {
     parameters: {
       query?: never;

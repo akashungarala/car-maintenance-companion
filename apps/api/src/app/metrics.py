@@ -33,6 +33,11 @@ DEAD_LETTERS = _meter.create_counter(
     description="Jobs that exhausted their retries",
 )
 
+MAGIC_LINKS_REQUESTED = _meter.create_counter(
+    "auth.magic_links_requested",
+    description="Sign-in links requested",
+)
+
 RATE_LIMIT_REJECTED = _meter.create_counter(
     "rate_limit.rejected",
     description="Requests refused by the rate limiter",
@@ -94,3 +99,15 @@ def record_rate_limit_rejection(bucket: str) -> None:
     caller was refused belongs in the log line.
     """
     RATE_LIMIT_REJECTED.add(1, {"bucket": bucket})
+
+
+def record_magic_link_requested() -> None:
+    """Count a sign-in request.
+
+    No attributes at all. The address is the only thing that distinguishes one
+    request from another, and it is a personal identifier -- as a label it
+    would be both an unbounded series generator and a privacy problem. The
+    number alone answers what this metric is for: how much of the 100/day email
+    budget sign-ins are consuming.
+    """
+    MAGIC_LINKS_REQUESTED.add(1)

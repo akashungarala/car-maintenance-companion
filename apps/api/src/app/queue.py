@@ -54,6 +54,30 @@ async def enqueue_heartbeat(pool: ArqRedis, *, job_id: str | None = None) -> obj
     )
 
 
+async def enqueue_magic_link_email(
+    pool: ArqRedis, *, email: str, token: str, base_url: str
+) -> object | None:
+    """Hand the sign-in email to the worker.
+
+    The raw token travels in the job payload because the email is the only
+    place it can legitimately appear. It is never written to the database, and
+    the payload lives in Redis for as long as the job takes to run.
+
+    No job_id, so no deduplication: two requests within the same minute are two
+    distinct links, and the second having invalidated the first is exactly what
+    the user expects when they click "send it again".
+    """
+    from app.telemetry import inject_trace_context
+
+    return await pool.enqueue_job(
+        "send_magic_link_email",
+        email=email,
+        token=token,
+        base_url=base_url,
+        trace_carrier=inject_trace_context({}),
+    )
+
+
 async def queue_depth(pool: ArqRedis) -> int:
     """Number of jobs waiting. Exported as a metric in F8 and alerted on."""
     return int(await pool.zcard(QUEUE_NAME))
