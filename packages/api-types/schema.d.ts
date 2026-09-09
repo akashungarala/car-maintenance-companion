@@ -122,6 +122,41 @@ export interface paths {
     patch?: never;
     trace?: never;
   };
+  '/vehicles': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** The signed-in user's vehicles */
+    get: operations['list_vehicles_vehicles_get'];
+    put?: never;
+    /** Add a vehicle */
+    post: operations['create_vehicle_vehicles_post'];
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
+  '/vehicles/{vehicle_id}': {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    /** One vehicle */
+    get: operations['get_vehicle_vehicles__vehicle_id__get'];
+    put?: never;
+    post?: never;
+    delete?: never;
+    options?: never;
+    head?: never;
+    patch?: never;
+    trace?: never;
+  };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -156,6 +191,53 @@ export interface components {
       msg: string;
       /** Error Type */
       type: string;
+    };
+    /** VehicleCreate */
+    VehicleCreate: {
+      /** Annual Mileage */
+      annual_mileage: number;
+      /** Make */
+      make: string;
+      /** Model */
+      model: string;
+      /** Nickname */
+      nickname?: string | null;
+      /** Odometer */
+      odometer: number;
+      /** Year */
+      year: number;
+    };
+    /** VehicleOut */
+    VehicleOut: {
+      /** Annual Mileage */
+      annual_mileage: number;
+      /**
+       * Created At
+       * Format: date-time
+       */
+      created_at: string;
+      /** Display Name */
+      display_name: string;
+      /**
+       * Id
+       * Format: uuid
+       */
+      id: string;
+      /** Make */
+      make: string;
+      /** Model */
+      model: string;
+      /** Nickname */
+      nickname: string | null;
+      /** Odometer */
+      odometer: number;
+      /**
+       * Odometer Recorded At
+       * Format: date-time
+       */
+      odometer_recorded_at: string;
+      /** Year */
+      year: number;
     };
   };
   responses: never;
@@ -312,6 +394,90 @@ export interface operations {
         };
         content: {
           'application/json': unknown;
+        };
+      };
+    };
+  };
+  list_vehicles_vehicles_get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VehicleOut'][];
+        };
+      };
+    };
+  };
+  create_vehicle_vehicles_post: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path?: never;
+      cookie?: never;
+    };
+    requestBody: {
+      content: {
+        'application/json': components['schemas']['VehicleCreate'];
+      };
+    };
+    responses: {
+      /** @description Successful Response */
+      201: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VehicleOut'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
+        };
+      };
+    };
+  };
+  get_vehicle_vehicles__vehicle_id__get: {
+    parameters: {
+      query?: never;
+      header?: never;
+      path: {
+        vehicle_id: string;
+      };
+      cookie?: never;
+    };
+    requestBody?: never;
+    responses: {
+      /** @description Successful Response */
+      200: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['VehicleOut'];
+        };
+      };
+      /** @description Validation Error */
+      422: {
+        headers: {
+          [name: string]: unknown;
+        };
+        content: {
+          'application/json': components['schemas']['HTTPValidationError'];
         };
       };
     };
