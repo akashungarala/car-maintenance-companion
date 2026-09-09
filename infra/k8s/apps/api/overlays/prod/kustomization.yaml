@@ -27,4 +27,4 @@ patches:
 
 images:
   - name: ghcr.io/akashungarala/car-maintenance-companion/api
-    newTag: 279f3fa0b129d588c1f1d62104804716baf370fa
+    newTag: 56ef0e3687ac4a9b5ff6cde4c9b3a739e39759ed
