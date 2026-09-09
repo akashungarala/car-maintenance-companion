@@ -1,0 +1,203 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UX-001 — Request a magic link</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 text-slate-900">
+    <div class="mx-auto max-w-6xl p-6">
+      <header class="mb-8">
+        <h1 class="text-2xl font-semibold">UX-001 — Request a magic link</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Low-fidelity reference for
+          <code class="rounded bg-slate-200 px-1">docs/ux/ux-001-magic-link-request.md</code>. Every
+          state is shown at once; the real screen shows one at a time.
+        </p>
+      </header>
+
+      <div class="grid gap-6 sm:grid-cols-2 lg:grid-cols-3">
+        <!-- DEFAULT -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Default</h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold">Sign in to your garage</h3>
+            <p class="mt-1 text-sm text-slate-600">We will email you a link. No password needed.</p>
+            <label for="e1" class="mt-5 block text-sm font-medium">Email address</label>
+            <input
+              id="e1"
+              type="email"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+              placeholder="you@example.com"
+            />
+            <button class="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 font-medium text-white">
+              Email me a link
+            </button>
+          </div>
+        </section>
+
+        <!-- LOADING -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Loading — form stays visible
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold">Sign in to your garage</h3>
+            <p class="mt-1 text-sm text-slate-600">We will email you a link. No password needed.</p>
+            <label for="e2" class="mt-5 block text-sm font-medium">Email address</label>
+            <input
+              id="e2"
+              type="email"
+              disabled
+              value="sam@example.com"
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-500"
+            />
+            <button
+              disabled
+              class="mt-4 flex w-full items-center justify-center gap-2 rounded-lg bg-slate-400 px-4 py-3 font-medium text-white"
+            >
+              <span
+                class="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent"
+              ></span>
+              Sending…
+            </button>
+          </div>
+        </section>
+
+        <!-- VALIDATION -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Validation — on submit, not on keystroke
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold">Sign in to your garage</h3>
+            <p class="mt-1 text-sm text-slate-600">We will email you a link. No password needed.</p>
+            <label for="e3" class="mt-5 block text-sm font-medium">Email address</label>
+            <input
+              id="e3"
+              type="email"
+              value="not-an-email"
+              aria-invalid="true"
+              aria-describedby="e3-err"
+              class="mt-1 w-full rounded-lg border-2 border-red-600 px-3 py-2.5"
+            />
+            <p id="e3-err" role="alert" class="mt-1.5 text-sm font-medium text-red-700">
+              That does not look like an email address.
+            </p>
+            <button class="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 font-medium text-white">
+              Email me a link
+            </button>
+          </div>
+        </section>
+
+        <!-- SUCCESS -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Success — names the address
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm" aria-live="polite">
+            <div
+              class="flex h-10 w-10 items-center justify-center rounded-full bg-emerald-100 text-xl"
+            >
+              ✉️
+            </div>
+            <h3 tabindex="-1" class="mt-3 text-lg font-semibold">Check your email</h3>
+            <p class="mt-1.5 text-sm text-slate-600">
+              We sent a link to <strong class="text-slate-900">sam@example.com</strong>. It works
+              once and expires in 15 minutes.
+            </p>
+            <p class="mt-4 text-sm text-slate-600">
+              Wrong address?
+              <button class="font-medium text-slate-900 underline">Use a different one</button>
+            </p>
+          </div>
+        </section>
+
+        <!-- ERROR -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Error — field keeps its value
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold">Sign in to your garage</h3>
+            <div
+              role="alert"
+              class="mt-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2.5 text-sm text-red-800"
+            >
+              Something went wrong sending your link. Please try again.
+            </div>
+            <label for="e4" class="mt-4 block text-sm font-medium">Email address</label>
+            <input
+              id="e4"
+              type="email"
+              value="sam@example.com"
+              class="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2.5"
+            />
+            <button class="mt-4 w-full rounded-lg bg-slate-900 px-4 py-3 font-medium text-white">
+              Email me a link
+            </button>
+          </div>
+        </section>
+
+        <!-- RATE LIMITED -->
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Rate limited — says how long
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <h3 class="text-lg font-semibold">Sign in to your garage</h3>
+            <div
+              role="alert"
+              class="mt-4 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5 text-sm text-amber-900"
+            >
+              Too many attempts. Try again in <strong>45 seconds</strong>.
+            </div>
+            <label for="e5" class="mt-4 block text-sm font-medium">Email address</label>
+            <input
+              id="e5"
+              type="email"
+              value="sam@example.com"
+              disabled
+              class="mt-1 w-full rounded-lg border border-slate-300 bg-slate-50 px-3 py-2.5 text-slate-500"
+            />
+            <button
+              disabled
+              class="mt-4 w-full rounded-lg bg-slate-400 px-4 py-3 font-medium text-white"
+            >
+              Email me a link
+            </button>
+          </div>
+        </section>
+      </div>
+
+      <section class="mt-10 rounded-xl border border-slate-300 bg-white p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Decisions visible in this mockup
+        </h2>
+        <ul class="mt-3 space-y-1.5 text-sm text-slate-700">
+          <li>
+            <strong>No "no account found".</strong> Registered and unregistered addresses produce
+            the identical confirmation, so this form cannot be used to discover who has an account.
+          </li>
+          <li>
+            <strong>Loading keeps the form.</strong> Replacing it before the request succeeds means
+            a failure returns the user to a blank field.
+          </li>
+          <li>
+            <strong>Success names the address.</strong> The most common failure here is not an error
+            — it is a link sent to a typo the user cannot read.
+          </li>
+          <li>
+            <strong>429 states the wait.</strong> "Too many attempts" without a number turns a
+            temporary limit into an apparent dead end.
+          </li>
+          <li>
+            <strong>Label, not placeholder.</strong> A placeholder disappears the moment typing
+            starts, taking the field's meaning with it.
+          </li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>

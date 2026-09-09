@@ -23,3 +23,5 @@ Never edit a decision's substance after it is accepted; the point is the audit t
 | [0010](0010-weekly-digest-email.md)                         | Weekly digest email, not per-item reminders               | Accepted |
 | [0011](0011-protected-main-including-admins.md)             | `main` is protected, including for administrators         | Accepted |
 | [0012](0012-served-under-a-path-on-the-portfolio-domain.md) | Served under a path on the portfolio domain               | Accepted |
+| [0013](0013-collector-agent-instead-of-alloy.md)            | A collector DaemonSet for cluster telemetry, not Alloy    | Accepted |
+| [0014](0014-authentication-in-the-api.md)                   | Authentication belongs in the API, not Auth.js            | Accepted |

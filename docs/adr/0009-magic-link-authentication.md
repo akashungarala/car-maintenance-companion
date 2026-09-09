@@ -1,6 +1,7 @@
 # ADR-0009: Magic-link authentication, no passwords
 
-**Status:** Accepted · 2026-09-07
+**Status:** Accepted · 2026-09-07 · **Amended by**
+[ADR-0014](0014-authentication-in-the-api.md) — magic links stand; Auth.js does not
 
 ## Context
 
