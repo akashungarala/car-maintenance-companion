@@ -1,0 +1,87 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>UX-002 — Arriving from the sign-in link</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+  </head>
+  <body class="bg-slate-100 text-slate-900">
+    <div class="mx-auto max-w-4xl p-6">
+      <header class="mb-8">
+        <h1 class="text-2xl font-semibold">UX-002 — Arriving from the sign-in link</h1>
+        <p class="mt-1 text-sm text-slate-600">
+          Reference for
+          <code class="rounded bg-slate-200 px-1">docs/ux/ux-002-magic-link-callback.md</code>. Two
+          states only: it is working, or the link cannot be used.
+        </p>
+      </header>
+
+      <div class="grid gap-6 sm:grid-cols-2">
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Loading — the expected state, usually under a second
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm" aria-live="polite">
+            <div class="flex items-center gap-3">
+              <span
+                class="h-5 w-5 animate-spin rounded-full border-2 border-slate-900 border-t-transparent"
+              ></span>
+              <p class="text-base font-medium">Signing you in…</p>
+            </div>
+            <p class="mt-3 text-sm text-slate-600">
+              No button. The exchange starts the moment the page loads, so a real visitor never acts
+              — and a mail scanner, which only issues GETs, never spends the link.
+            </p>
+          </div>
+        </section>
+
+        <section>
+          <h2 class="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            Error — identical for every cause
+          </h2>
+          <div class="rounded-xl bg-white p-6 shadow-sm">
+            <div class="flex h-10 w-10 items-center justify-center rounded-full bg-red-100 text-xl">
+              ⚠️
+            </div>
+            <h3 tabindex="-1" class="mt-3 text-lg font-semibold">This link cannot be used</h3>
+            <p class="mt-1.5 text-sm text-slate-600">
+              Sign-in links work once and expire after 15 minutes.
+            </p>
+            <a
+              href="#"
+              class="mt-4 inline-block rounded-lg bg-slate-900 px-4 py-2.5 text-sm font-medium text-white"
+              >Request a new link</a
+            >
+          </div>
+        </section>
+      </div>
+
+      <section class="mt-10 rounded-xl border border-slate-300 bg-white p-6">
+        <h2 class="text-sm font-semibold uppercase tracking-wide text-slate-500">
+          Why this screen looks like almost nothing
+        </h2>
+        <ul class="mt-3 space-y-1.5 text-sm text-slate-700">
+          <li>
+            <strong>No success state.</strong> Success is being redirected to the garage. An
+            interstitial saying "you're signed in!" is a screen whose only content is a delay.
+          </li>
+          <li>
+            <strong>No confirm button.</strong> A "click to sign in" page would defeat scanners too,
+            at the cost of an extra deliberate click on every sign-in, forever. The POST already
+            solves it.
+          </li>
+          <li>
+            <strong>One error for four causes.</strong> Expired, already used, never existed,
+            altered — naming which would tell an attacker which tokens once existed, and none of
+            them changes what the user does next.
+          </li>
+          <li>
+            <strong>Missing token is not a separate state.</strong> A bookmarked callback URL is the
+            same dead end as an expired link, and two ways of saying so is one too many.
+          </li>
+        </ul>
+      </section>
+    </div>
+  </body>
+</html>
