@@ -84,5 +84,5 @@ dev = [
     "pre-commit>=4.0",
     "httpx>=0.28",
     # Real Postgres in tests. Never SQLite — see docs/engineering/testing.md.
-    "testcontainers[postgres]>=4.9",
+    "testcontainers[postgres]>=4.15.0",
 ]
