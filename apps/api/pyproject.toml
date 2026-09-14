@@ -8,7 +8,7 @@ dependencies = [
     "uvicorn[standard]>=0.34",
     "structlog>=24.4",
     "pydantic-settings>=2.7",
-    "sqlalchemy[asyncio]>=2.0",
+    "sqlalchemy[asyncio]>=2.0.52",
     "asyncpg>=0.30",
     "alembic>=1.14",
     # asyncio-native and tiny, unlike Celery which is sync-first and brings far
