@@ -204,12 +204,12 @@ jobs:
           echo "::error::pip-audit failed three times — treat as a real finding"
           exit 1
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
 
       # No `cache: pnpm`: nothing in this job populates a pnpm store, so the
       # action's post-phase cache save fails the job over a path that was
       # never going to exist.
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
 
@@ -243,7 +243,7 @@ jobs:
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
@@ -299,10 +299,10 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Build image
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
@@ -455,17 +455,17 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
 
       - name: Log in to GHCR
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Build and push
-        uses: docker/build-push-action@v6
+        uses: docker/build-push-action@v7
         with:
           context: .
           file: ${{ matrix.dockerfile }}
