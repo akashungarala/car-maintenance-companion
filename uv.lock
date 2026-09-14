@@ -371,7 +371,7 @@ requires-dist = [
     { name = "opentelemetry-instrumentation-redis", specifier = ">=0.50b0" },
     { name = "opentelemetry-instrumentation-sqlalchemy", specifier = ">=0.50b0" },
     { name = "opentelemetry-sdk", specifier = ">=1.29" },
-    { name = "pydantic", extras = ["email"], specifier = ">=2.10" },
+    { name = "pydantic", extras = ["email"], specifier = ">=2.13.5" },
     { name = "pydantic-settings", specifier = ">=2.7" },
     { name = "sqlalchemy", extras = ["asyncio"], specifier = ">=2.0" },
     { name = "structlog", specifier = ">=24.4" },
