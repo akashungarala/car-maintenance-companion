@@ -10,7 +10,7 @@ dependencies = [
     "pydantic-settings>=2.7",
     "sqlalchemy[asyncio]>=2.0",
     "asyncpg>=0.30",
-    "alembic>=1.14",
+    "alembic>=1.20.0",
     # asyncio-native and tiny, unlike Celery which is sync-first and brings far
     # more machinery than one worker needs (see the plan's component table).
     "arq>=0.26",

@@ -80,7 +80,7 @@ dev = [
     "pytest-asyncio>=0.25",
     "pytest-cov>=6.0",
     "mypy>=1.14",
-    "ruff>=0.9",
+    "ruff>=0.16.8",
     "pre-commit>=4.0",
     "httpx>=0.28",
     # Real Postgres in tests. Never SQLite — see docs/engineering/testing.md.
