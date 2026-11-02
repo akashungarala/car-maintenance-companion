@@ -76,12 +76,12 @@ exclude_lines = [
 # Dev tooling for the whole workspace. Services declare only their runtime deps.
 [dependency-groups]
 dev = [
-    "pytest>=8.3",
-    "pytest-asyncio>=0.25",
+    "pytest>=9.2.0",
+    "pytest-asyncio>=1.4.1",
     "pytest-cov>=6.0",
-    "mypy>=1.14",
-    "ruff>=0.9",
-    "pre-commit>=4.0",
+    "mypy>=2.4.1",
+    "ruff>=0.17.3",
+    "pre-commit>=4.7.0",
     "httpx>=0.28",
     # Real Postgres in tests. Never SQLite — see docs/engineering/testing.md.
     "testcontainers[postgres]>=4.9",
